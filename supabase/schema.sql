@@ -578,4 +578,4 @@ end $$;
 -- ---------------------------------------------------------------------
 -- YOUR ADMIN: put the Google e-mail you sign in with here, then run.
 -- ---------------------------------------------------------------------
-insert into public.admins (email) values ('YOUR-ADMIN-EMAIL@gmail.com') on conflict (email) do nothing;
+insert into public.admins (email) values ('datathon2025x@gmail.com') on conflict (email) do nothing;

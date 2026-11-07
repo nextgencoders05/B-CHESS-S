@@ -5,7 +5,7 @@ Quick Match, learning materials and ratings, and the admin panel. Firebase is no
 
 ## 1. Create the database (one time)
 1. Supabase → **SQL Editor** → **New query**.
-2. Open `supabase/schema.sql`, change the last line `YOUR-ADMIN-EMAIL@gmail.com` to your admin Gmail.
+2. Open `supabase/schema.sql`, The admin email is already configured as `datathon2025x@gmail.com` in the final line.
 3. Paste the whole file → **Run**. You should see "Success. No rows returned".
    (You can run it again later; it is safe.)
 
@@ -17,7 +17,7 @@ window.SUPABASE_CONFIG = {
   anonKey: 'YOUR-ANON-PUBLIC-KEY'               // anon / publishable key
 };
 ```
-Never put the **service_role / secret** key in the website.
+The project URL and publishable key are already filled in `config.js`. Never put the **service_role / secret** key or database password in the website.
 
 ## 3. Google login
 1. Supabase → Authentication → **Sign In / Providers → Google** → Enable. Copy the **Callback URL** shown there.

@@ -1,0 +1,22 @@
+B CHESS ANALYZER — CONFIGURATION NOTES
+
+Already filled in:
+- Supabase project URL
+- Supabase publishable key
+- Admin allowlist email: datathon2025x@gmail.com
+
+IMPORTANT:
+- No database password is included in this ZIP.
+- Do not add a database password, service_role key, or secret key to config.js or GitHub.
+- The admin panel uses Google Sign-In. Sign in with datathon2025x@gmail.com.
+- The separate password shared in chat is not used by this Google Sign-In setup. Change it if it is also your real account/database password.
+
+NEXT SETUP STEPS:
+1. Open Supabase Dashboard > SQL Editor > New query.
+2. Open supabase/schema.sql from this ZIP, copy the entire file, paste it into SQL Editor, and click Run.
+3. In Supabase Authentication > Sign In / Providers, enable Google and configure Google OAuth credentials.
+4. In Authentication > URL Configuration, set the Site URL and add your GitHub Pages URL to Redirect URLs.
+5. Upload the contents of B-CHESS-COM-main to your GitHub repository, preserving folder structure.
+6. Open the deployed website and test Google sign-in with datathon2025x@gmail.com.
+
+Note: Supabase Free has usage limits and may pause an inactive project. It is not an unlimited production server.

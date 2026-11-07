@@ -1,0 +1,361 @@
+/* =========================================================
+   CHESS.COM-STYLE UI LAYER  (visual only — no logic, mic, rules or modes touched)
+   ========================================================= */
+:root{
+  --bg:#302e2b; --panel:#262421; --panel-2:#211f1c; --panel-3:#2b2926;
+  --line:#3c3a37; --text:#ffffff; --text-2:#c3c2c1; --muted:#989795;
+  --green:#81b64c; --green-hi:#95c35e; --green-shadow:#45753c;
+  --blue:#4a9fe0; --danger:#e0533d; --radius:8px;
+  --tap:46px; --nav-h:62px; --side-w:84px;
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg)!important;color:var(--text-2);
+  font-family:'Segoe UI',Roboto,'Helvetica Neue',Arial,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;line-height:1.4;
+}
+*{font-family:inherit;scrollbar-width:thin;scrollbar-color:#4a4743 transparent}
+button:focus-visible,input:focus-visible,select:focus-visible,.tab:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+/* ---------- Header ---------- */
+.top-bar{
+  background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:var(--radius);
+  padding:8px 12px!important;margin-bottom:12px!important;gap:10px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.pawn-icon{color:var(--green)!important}
+.brand h1{font-size:20px!important;font-weight:800;color:#fff!important;letter-spacing:-.2px}
+.theme-controls{flex-wrap:wrap;align-items:center}
+.player-search-input{background:var(--panel-2)!important;border-color:var(--line)!important;color:#fff!important;border-radius:var(--radius)!important}
+
+/* ---------- Buttons (chess.com 3D look) ---------- */
+.pill-btn,.control-btn,.mode-btn,.tab,.copy-analysis-btn,.friends-tab{
+  transition:background .15s,border-color .15s,transform .08s,color .15s,box-shadow .15s;
+}
+.pill-btn{
+  background:var(--panel-3)!important;border:1px solid var(--line)!important;color:var(--text-2)!important;
+  border-radius:var(--radius)!important;font-weight:700;min-height:34px;
+}
+.pill-btn:hover{background:#34322e!important;color:#fff!important}
+.pill-btn.active-pill{background:rgba(129,182,76,.14)!important;border-color:var(--green)!important;color:var(--green-hi)!important}
+.highlight-btn,.bot-action-btn,.copy-analysis-btn{
+  background:var(--green)!important;color:#fff!important;border:0!important;
+  border-bottom:4px solid var(--green-shadow)!important;border-radius:var(--radius)!important;
+  font-weight:800!important;text-shadow:0 1px 0 rgba(0,0,0,.25);
+}
+.highlight-btn:hover,.bot-action-btn:hover,.copy-analysis-btn:hover{background:var(--green-hi)!important}
+.highlight-btn:active,.bot-action-btn:active,.copy-analysis-btn:active{border-bottom-width:1px!important;transform:translateY(3px)}
+.pill-btn:active,.control-btn:active{transform:scale(.97)}
+.resign-danger-btn,.leave-game-btn{color:#ff8a78!important}
+.google-login-pill{background:#fff!important;color:#222!important;border-color:#fff!important}
+
+/* ---------- Cards / panels ---------- */
+.board-card,.analysis-card{
+  background:var(--panel)!important;border:1px solid var(--line)!important;
+  border-radius:12px!important;box-shadow:0 4px 18px rgba(0,0,0,.35)!important;
+}
+.panel-box{background:var(--panel-2)!important;border:1px solid var(--line)!important;border-radius:var(--radius)!important}
+.label{color:var(--muted)!important;font-weight:700;letter-spacing:.6px}
+.stat-val{color:#fff!important;font-weight:800;font-variant-numeric:tabular-nums}
+.engine-badge{background:rgba(129,182,76,.15)!important;color:var(--green-hi)!important;border:1px solid rgba(129,182,76,.4)!important}
+.best-move-box{border-left:4px solid var(--green)!important}
+.best-move-box h2{color:#fff!important;font-weight:800}
+.pv-line{color:var(--muted)!important}
+
+/* ---------- Mode bar ---------- */
+.mode-bar{background:var(--panel-2)!important;border:1px solid var(--line)!important;border-radius:var(--radius)!important}
+.mode-label{display:none}
+.mode-buttons{background:var(--panel);border:1px solid var(--line);padding:3px;border-radius:10px;flex-wrap:nowrap}
+.mode-btn{background:transparent!important;border:0!important;color:var(--text-2)!important;border-radius:7px!important;font-weight:700;white-space:nowrap;padding:8px 12px!important}
+.mode-btn:hover{background:#34322e!important;color:#fff!important}
+.mode-btn.active{background:var(--green)!important;color:#fff!important;box-shadow:0 2px 0 var(--green-shadow)}
+.bot-controls{border-top:1px solid var(--line)!important}
+.bot-setting label{color:var(--text-2);font-weight:600}
+.styled-select,.profile-input,#fenInput,#chatInput,.player-search-input,#roomCodeInput{
+  background:var(--panel)!important;border:1px solid var(--line)!important;color:#fff!important;
+  border-radius:var(--radius)!important;min-height:36px;
+}
+input:focus,select:focus{border-color:var(--green)!important;box-shadow:0 0 0 3px rgba(129,182,76,.2)!important}
+.active-room-bar,.voice-chat-row{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:var(--radius)!important}
+.room-code-tag{background:var(--panel-3)!important;border-color:var(--line)!important;color:var(--text-2)!important}
+.voice-text{color:var(--text-2)!important}
+.mic-action-btn,.speaker-action-btn{min-height:var(--tap)}
+
+/* ---------- Player bars (avatar + name + clock) ---------- */
+.captured-bar{background:transparent!important;border:0!important;padding:4px 2px!important;min-height:48px;gap:8px}
+.player-tag{gap:10px}
+.player-dot{width:34px!important;height:34px!important;border-radius:6px!important;box-shadow:none!important;flex:0 0 34px;position:relative}
+.player-dot.white-dot{background:#f1f1f1!important;border:2px solid #cfcfcf!important}
+.player-dot.black-dot{background:#4b4845!important;border:2px solid #6a6663!important}
+.player-dot::after{content:'♟';position:absolute;inset:0;display:grid;place-items:center;font-size:20px}
+.player-dot.white-dot::after{color:#555}.player-dot.black-dot::after{color:#ddd}
+.player-name{font-size:14px!important;font-weight:800;color:#fff!important}
+.material-advantage{background:transparent!important;color:var(--text-2)!important;font-size:12px}
+.chess-clock{background:#1f1e1b!important;border:0!important;color:#fff!important;min-width:92px;font-size:22px!important;font-weight:800;border-radius:6px!important;padding:6px 12px!important;font-variant-numeric:tabular-nums}
+.chess-clock.active-clock{background:#fff!important;color:#262421!important;box-shadow:none!important}
+.chess-clock.low-clock{background:#c0392b!important;color:#fff!important}
+
+/* ---------- Board & eval bar ---------- */
+.white-1e1d7{background-color:#eeeed2!important;color:#769656!important}
+.black-3c85d{background-color:#769656!important;color:#eeeed2!important}
+body.wood-theme .white-1e1d7{background-color:#f0d9b5!important;color:#b58863!important}
+body.wood-theme .black-3c85d{background-color:#b58863!important;color:#f0d9b5!important}
+.board-wrapper{border-radius:4px!important;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.eval-bar-container{background:#403d39!important;border:0!important;border-radius:4px!important;width:22px}
+.eval-bar-black{background:#403d39!important}
+.eval-bar-white{background:#fff!important}
+.square-selected{background-color:rgba(255,255,80,.55)!important;box-shadow:none!important}
+.legal-dest-dot::before{background:rgba(0,0,0,.18)!important;box-shadow:none!important;width:30%!important;height:30%!important}
+.legal-dest-capture::after{border:5px solid rgba(0,0,0,.18)!important;box-shadow:none!important}
+
+/* ---------- Board controls ---------- */
+.control-btn{
+  background:var(--panel-3)!important;border:1px solid var(--line)!important;color:var(--text-2)!important;
+  border-radius:var(--radius)!important;min-height:var(--tap);font-weight:700;
+}
+.control-btn:hover{background:#34322e!important;color:#fff!important}
+.control-btn.highlight-btn{color:#fff!important}
+
+/* ---------- Tabs (underline style) ---------- */
+.tabs{background:transparent!important;border:0!important;border-bottom:2px solid var(--line)!important;border-radius:0!important;padding:0!important;gap:0!important;overflow-x:auto;scrollbar-width:none;margin-bottom:12px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{background:transparent!important;border:0!important;border-bottom:3px solid transparent!important;margin-bottom:-2px;color:var(--muted)!important;font-weight:700;border-radius:0!important;min-height:44px;white-space:nowrap}
+.tab:hover{color:#fff!important}
+.tab.active{color:#fff!important;border-bottom-color:var(--green)!important;box-shadow:none!important}
+.tab-content.active-content{animation:uxFade .2s ease}
+@keyframes uxFade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* ---------- Move list (chess.com zebra) ---------- */
+.history-box{max-height:240px}
+.move-row{grid-template-columns:40px 1fr 1fr!important;padding:6px 8px!important;border-bottom:0!important;font-size:13px!important;font-weight:700;color:#fff}
+.move-row:nth-child(odd){background:rgba(255,255,255,.04)}
+.move-row span.move-num{color:var(--muted)!important;font-weight:600}
+.move-list-empty{color:var(--muted)!important}
+.badge-best{background:#4a9fe0!important;color:#fff!important}
+.badge-good{background:#5d9948!important;color:#fff!important}
+
+/* ---------- Review tab ---------- */
+.accuracy-circle{border-color:var(--green)!important}
+.performance-elo{color:var(--green-hi)!important}
+
+/* ---------- Modals ---------- */
+.skill-modal-overlay{background:rgba(0,0,0,.65)!important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));overflow-y:auto}
+.skill-modal-window{background:var(--panel)!important;border:1px solid var(--line)!important;border-radius:12px!important;
+  max-height:calc(100dvh - 24px);overflow-y:auto;animation:uxPop .18s ease;-webkit-overflow-scrolling:touch}
+.skill-modal-window h2{color:#fff!important;font-weight:800}
+.modal-subtext{color:var(--muted)!important}
+@keyframes uxPop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.time-control-card,.skill-card,.promotion-choice,.friend-row,.history-match-row{background:var(--panel-2)!important;border:1px solid var(--line)!important;color:#fff!important;border-radius:var(--radius)!important}
+.time-control-card:hover,.skill-card:hover,.promotion-choice:hover{border-color:var(--green)!important;background:#2d2b28!important}
+.friends-tab{background:var(--panel-2)!important;border:1px solid var(--line)!important;color:var(--muted)!important}
+.friends-tab.active{background:var(--green)!important;border-color:var(--green)!important;color:#fff!important}
+
+/* ---------- PWA banner ---------- */
+.pwa-install-banner{background:var(--panel)!important;border:1px solid var(--line)!important}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* =========================================================
+   NAVIGATION  (built by ux.js; proxies the existing mode buttons)
+   ========================================================= */
+#uxNav{display:none}
+body.ux-nav-ready #uxNav{display:flex}
+body.ux-nav-ready .mode-selector{display:none}   /* originals stay in DOM and are clicked by the nav */
+.ux-nav-item{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:transparent;border:0;color:var(--muted);cursor:pointer;font-weight:700;
+  font-size:11px;padding:8px 4px;touch-action:manipulation;flex:1;position:relative;
+}
+.ux-nav-item .ux-ico{font-size:22px;line-height:1}
+.ux-nav-item.active{color:#fff}
+.ux-nav-item.active::before{content:'';position:absolute;background:var(--green)}
+.ux-nav-item:hover{color:#fff;background:rgba(255,255,255,.05)}
+
+/* Desktop: left sidebar */
+@media (min-width:901px){
+  body.ux-nav-ready{padding-left:calc(var(--side-w) + 18px)}
+  #uxNav{position:fixed;left:0;top:0;bottom:0;width:var(--side-w);flex-direction:column;justify-content:flex-start;
+    background:#21201d;border-right:1px solid var(--line);padding:14px 6px;gap:6px;z-index:60}
+  .ux-nav-logo{font-size:30px;color:var(--green);text-align:center;margin-bottom:10px}
+  .ux-nav-item{flex:0 0 auto;border-radius:8px;padding:12px 4px}
+  .ux-nav-item.active{background:#2f2d2a}
+  .ux-nav-item.active::before{left:0;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0}
+  .board-card{position:sticky;top:78px}
+}
+@media (min-width:901px) and (max-width:1100px){:root{--side-w:70px}.ux-nav-item{font-size:10px}}
+
+/* Mobile: bottom tab bar */
+@media (max-width:900px){
+  .ux-nav-logo{display:none}
+  body.ux-nav-ready{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px)!important}
+  #uxNav{position:fixed;left:0;right:0;bottom:0;height:calc(var(--nav-h) + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom);background:#21201d;border-top:1px solid var(--line);z-index:90}
+  .ux-nav-item.active::before{top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px}
+  .pwa-install-banner:not(.mobile-install-banner){bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px)}
+}
+
+/* ---------- Mobile polish ---------- */
+@media (max-width:700px){
+  body{padding-left:6px!important;padding-right:6px!important}
+  .top-bar{position:static;padding:8px!important;margin-bottom:8px!important}
+  .theme-controls{width:100%;max-width:100%!important;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;justify-content:flex-start}
+  .theme-controls::-webkit-scrollbar{display:none}
+  .theme-controls>.pill-btn{flex:0 0 auto;white-space:nowrap;min-height:38px;font-size:12px!important;padding:6px 12px!important}
+  .player-search-wrap{order:3;width:100%}
+  .board-card,.analysis-card{padding:8px!important;border-radius:10px!important}
+  .board-controls{position:static!important;grid-template-columns:repeat(4,1fr)!important;gap:6px;margin-top:8px;background:transparent!important;border:0!important;padding:0!important}
+  .board-controls #playBestBtn{grid-column:span 2!important;order:-1}
+  .chess-clock{min-width:80px;font-size:20px!important}
+  input,select,textarea{font-size:16px}
+  .tab{padding:8px 14px!important;font-size:13px!important;min-width:auto!important}
+  .skill-modal-window{width:100%;max-width:100%;padding:16px}
+}
+@media (max-width:390px){.player-name{font-size:13px!important}.chess-clock{min-width:70px;font-size:18px!important}}
+
+/* =========================================================
+   MOBILE UI v2  (phones <= 700px)
+   ========================================================= */
+@media (max-width:700px){
+    body{padding-top:max(6px,env(safe-area-inset-top))!important}
+
+  /* --- Header: compact, one tidy block --- */
+  .top-bar{display:grid!important;grid-template-columns:1fr;gap:8px;padding:8px 10px!important;border-radius:10px}
+  .brand{gap:8px}
+  .pawn-icon{font-size:24px!important}
+  .brand h1{font-size:17px!important}
+  .player-search-wrap{order:0;width:100%}
+  .player-search-box{background:var(--panel-2)!important;border:1px solid var(--line)!important;border-radius:10px!important;padding:0 10px!important;min-height:40px;box-shadow:none!important}
+  .player-search-input{border:0!important;background:transparent!important;box-shadow:none!important;min-height:38px;padding-left:4px!important}
+  .player-search-icon{opacity:.7}
+  .theme-controls{gap:6px!important}
+  .theme-controls>.pill-btn{min-height:36px;font-size:12px!important}
+  .user-profile-widget{background:var(--panel-2)!important;border-color:var(--line)!important;flex:0 0 auto}
+  .rating-badge-pill{background:var(--green)!important;color:#fff!important}
+
+  /* --- Mode bar: only show when it holds extra controls --- */
+  .mode-bar{padding:0!important;border:0!important;background:transparent!important;margin-bottom:6px!important;gap:0}
+  .bot-controls{background:var(--panel-2);border:1px solid var(--line)!important;border-radius:10px;padding:10px!important;margin-bottom:8px;gap:8px!important}
+  #botControls{display:grid;grid-template-columns:1fr 1fr;align-items:end}
+  #botControls[style*="display: none"]{display:none!important}
+  #botControls .bot-setting{flex-direction:column;align-items:stretch;gap:4px}
+  #botControls .styled-select{width:100%;min-height:42px}
+  #botControls #startBotGameBtn{grid-column:1/-1;min-height:46px;font-size:15px}
+  .friend-controls-box .friend-btn-row{gap:8px!important}
+  .friend-controls-box .pill-btn{min-height:44px}
+  #createRoomBtn{grid-column:1/-1;font-size:15px}
+  .active-room-header{display:grid!important;grid-template-columns:1fr 1fr;gap:6px!important}
+  .active-room-header .room-code-tag{grid-column:1/-1;text-align:center}
+  .active-room-header .pill-btn{min-height:42px}
+
+  /* --- Board: edge to edge, slim eval bar --- */
+  .board-card{padding:6px!important}
+  .board-and-eval{gap:4px!important}
+  .eval-bar-container{width:10px!important;min-width:10px!important;border-radius:3px!important}
+  .eval-bar-score{display:none}
+  .board-relative-box{width:calc(100% - 14px)!important;max-width:none!important}
+  .board-wrapper{border-radius:3px!important;box-shadow:none}
+
+  /* --- Move strip (moved above the board by ux.js) --- */
+  #quickHistoryBox{background:var(--panel-2)!important;padding:4px 8px!important;min-height:0!important;max-height:none!important;border-radius:8px!important;margin:0 0 6px}
+  #quickHistoryBox>.label{display:none}
+  #quickMoveHistory{display:flex!important;overflow-x:auto;white-space:nowrap;gap:2px;scrollbar-width:none;padding:2px 0;-webkit-overflow-scrolling:touch}
+  #quickMoveHistory::-webkit-scrollbar{display:none}
+  #quickMoveHistory .move-list-empty{padding:4px 0;font-size:12px;text-align:left}
+  #quickMoveHistory .move-row{display:flex!important;flex:0 0 auto;gap:4px;padding:4px 8px!important;background:transparent!important;font-size:13px!important;border-radius:6px}
+  #quickMoveHistory .move-row span.move-num{color:var(--muted);margin-right:0}
+  #quickMoveHistory .move-badge{display:none}
+
+  /* --- Player bars --- */
+  .captured-bar{min-height:44px!important;padding:2px 2px!important}
+  .player-dot{width:30px!important;height:30px!important;flex-basis:30px!important}
+  .captured-img{width:16px!important;height:16px!important}
+
+  /* --- Board controls: Play Best full width, 4 equal buttons --- */
+  .board-controls{grid-template-columns:repeat(4,1fr)!important;gap:6px!important;margin-top:6px!important}
+  .board-controls #playBestBtn{grid-column:1/-1!important;order:-1;min-height:50px;font-size:16px!important}
+  .board-controls .control-btn{min-height:48px;font-size:12px!important;padding:6px 2px!important}
+
+  /* --- Analysis card --- */
+  .analysis-card{padding:8px!important}
+  .tabs{margin:0 -8px 10px;padding:0 8px!important}
+  .stats-grid{grid-template-columns:1fr 1fr!important;gap:8px!important}
+  .best-move-box h2{font-size:24px!important}
+  .panel-box.action-box{background:transparent!important;border:0!important;padding:0!important}
+  .copy-analysis-btn{width:100%;min-height:48px;font-size:15px!important}
+  .fen-input-row{gap:8px}
+  .history-box{max-height:none}
+
+  /* --- Install banner: above the bottom bar, compact, never covers header --- */
+  .pwa-install-banner.mobile-install-banner{top:auto!important;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px)!important;
+    min-height:0!important;padding:8px 10px!important;border-radius:12px!important;gap:8px!important}
+  .mobile-install-banner .pwa-install-copy span{display:none}
+  .mobile-install-banner .pwa-install-copy strong{font-size:14px!important}
+  .mobile-install-banner .pwa-install-app-icon{width:34px!important;height:34px!important;flex-basis:34px!important}
+
+  /* --- Modals become bottom sheets --- */
+  .skill-modal-overlay{align-items:flex-end!important;padding:0!important}
+  .skill-modal-window{width:100%!important;max-width:100%!important;max-height:88dvh;border-radius:18px 18px 0 0!important;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom))!important;animation:uxSheet .22s ease}
+  .skill-modal-window::before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:#5a5753;margin:-6px auto 12px}
+  .skill-modal-window .pill-btn{min-height:46px}
+  .time-control-grid{grid-template-columns:1fr 1fr!important;gap:8px}
+  .promotion-grid{grid-template-columns:repeat(4,1fr)!important}
+  .promotion-choice span{font-size:34px!important}
+  .skill-level-grid{grid-template-columns:1fr!important}
+  @keyframes uxSheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+}
+@media (max-width:360px){
+  .board-controls .control-btn{font-size:11px!important}
+  .brand h1{font-size:15px!important}
+}
+
+/* fixes: Play Best stays green; Google button is icon-only on phones */
+.control-btn.highlight-btn{background:var(--green)!important;color:#fff!important;border:0!important;border-bottom:4px solid var(--green-shadow)!important}
+.control-btn.highlight-btn:hover{background:var(--green-hi)!important}
+.control-btn.highlight-btn:active{border-bottom-width:1px!important;transform:translateY(3px)}
+@media (max-width:700px){
+  .theme-controls>.google-login-pill{font-size:0!important;width:44px;min-width:44px;max-width:44px;padding:0!important;display:inline-flex;align-items:center;justify-content:center;overflow:hidden}
+  .theme-controls>.google-login-pill .google-icon{width:20px;height:20px}
+}
+@media (max-width:700px){
+  .theme-controls>.pill-btn:not(.google-login-pill){padding:6px 9px!important;font-size:11.5px!important}
+  .theme-controls{gap:5px!important}
+  .theme-controls>.google-login-pill{width:40px;min-width:40px;max-width:40px}
+}
+
+/* ---------- SCROLL FIX (phones) ----------
+   The board used touch-action:none everywhere, so any swipe on it could not scroll the page.
+   Now: empty squares / board area allow vertical page scroll; only the pieces keep
+   touch-action:none so drag-and-drop still works. Tap-to-move works everywhere. */
+@media (max-width:900px){
+  .board-wrapper,.board-wrapper .square-55d63,.board-wrapper [class*="board-"],
+  .board-and-eval,.board-relative-box{touch-action:pan-y!important}
+  .board-wrapper img[class*="piece-"],.board-wrapper img.piece-417db{touch-action:none!important}
+  html,body{height:auto!important;min-height:0}
+  html{overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch}
+  body{overflow:visible!important}
+}
+
+/* ---------- Board mic toggle (beside each player's name & Elo) ---------- */
+.board-mic-btn{display:inline-flex;align-items:center;justify-content:center;gap:3px;margin-left:2px;padding:0 8px;height:24px;
+  border-radius:999px;border:1px solid var(--line);background:var(--panel-3);color:var(--muted);
+  font-size:11px;font-weight:800;line-height:1;white-space:nowrap;cursor:pointer;flex:0 0 auto;touch-action:manipulation}
+.board-mic-btn.on{background:rgba(129,182,76,.16);border-color:var(--green);color:var(--green-hi)}
+.board-mic-btn.mine:hover{color:#fff;border-color:var(--green)}
+.board-mic-btn:disabled{cursor:default;opacity:.9}
+
+/* ---------- Incoming challenge pop-up (same look as the challenge list) ---------- */
+.challenge-toast{position:fixed!important;top:max(12px,env(safe-area-inset-top))!important;left:0!important;right:0!important;
+  margin:0 auto;width:360px;max-width:calc(100vw - 24px);z-index:5000;animation:uxPop .18s ease}
+.challenge-toast-msg{padding:2px 4px;color:#cbd5e1;font-size:12px;line-height:1.4}
+.challenge-toast-actions{display:flex;gap:8px}
+.challenge-toast-actions button{flex:1;height:40px;border-radius:8px;border:1px solid #334155;font-size:13px;font-weight:900;cursor:pointer}
+
+/* ---------- Waiting overlay detail line (challenge sent / searching) ---------- */
+.waiting-detail{font-size:13px;font-weight:700;color:#e2e8f0}
+
+@media (max-width:700px){
+  #quickMatchBtn{grid-column:1/-1;font-size:15px}
+  .board-mic-btn{height:26px;padding:0 8px}
+}

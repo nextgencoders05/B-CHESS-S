@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#262421" />
+  <meta name="description" content="B Chess Analyzer - analyze games, play chess and explore openings." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>B Chess Analyzer</title>
+  <!-- Chessboard.js CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="ux.css" />
+  <link rel="stylesheet" href="features.css" />
+</head>
+<body>
+  <!-- Mobile/Desktop PWA install prompt -->
+  <aside id="pwaInstallBanner" class="pwa-install-banner" role="dialog" aria-label="Install B Chess Analyzer" hidden>
+    <div class="pwa-install-app-icon">
+      <img src="icons/icon-192.png" alt="" />
+    </div>
+    <div class="pwa-install-copy">
+      <strong>♟ Install B Chess</strong>
+      <span>Get the mobile app on your Home Screen — full screen, faster access and app-like experience.</span>
+    </div>
+    <button type="button" id="pwaInstallBtn" class="pill-btn highlight-btn pwa-install-action">Install</button>
+    <button type="button" id="pwaInstallDismiss" class="pwa-install-dismiss" aria-label="Close install prompt">×</button>
+  </aside>
+  <!-- Incoming challenge pop-up (uses the existing challenge notification styles) -->
+  <div id="challengeToast" class="challenge-notification-box challenge-toast" style="display:none;" role="alertdialog" aria-live="assertive"></div>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="pawn-icon">♟</span>
+        <div>
+          <h1>B Chess Analyzer</h1>
+        </div>
+      </div>
+      <!-- Player Search -->
+      <div class="player-search-wrap" id="playerSearchWrap">
+        <div class="player-search-box">
+          <span class="player-search-icon">🔍</span>
+          <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Search players..." autocomplete="off" maxlength="20" />
+          <button type="button" id="playerSearchClearBtn" class="player-search-clear" style="display:none;" title="Clear">✕</button>
+        </div>
+        <div id="playerSearchResults" class="player-search-results" style="display:none;"></div>
+      </div>
+      <div class="theme-controls">
+        <button id="soundToggleBtn" class="pill-btn active-pill">🔊 Sound: ON</button>
+        <button id="arrowToggleBtn" class="pill-btn active-pill">🏹 Arrow: ON</button>
+        <button id="themeBtn" class="pill-btn">Green & White</button>
+        <button id="googleLoginBtn" class="pill-btn google-login-pill">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="google-icon" /> Sign in with Google
+        </button>
+        <div class="challenge-notification-wrap" id="challengeNotificationWrap" style="display:none;">
+          <button id="challengeNotificationBtn" class="pill-btn notification-btn" title="Challenges">♟<span id="challengeBadge" class="challenge-badge" style="display:none;">0</span></button>
+          <div id="challengeNotificationBox" class="challenge-notification-box" style="display:none;">
+            <div class="challenge-notification-title">Challenge Notifications</div>
+            <div id="challengeNotificationList" class="challenge-notification-list"></div>
+          </div>
+        </div>
+        <div id="userProfile" class="user-profile-widget" style="display: none;">
+          <img id="userAvatarImg" class="user-avatar-img" src="" alt="Profile" style="display:none;" />
+          <span id="userAvatarFallback" class="user-avatar-dot">P</span>
+          <span id="userNameDisplay" class="user-name-txt">Player</span>
+          <span id="userRatingDisplay" class="rating-badge-pill">800</span>
+          <button id="editProfileBtn" class="pill-btn profile-edit-pill">Profile</button>
+          <button id="signOutBtn" class="pill-btn signout-pill">Sign Out</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-grid">
+      <!-- Left: Eval Bar + Chessboard Section -->
+      <section class="board-card">
+        <!-- Game Mode Selection Banner -->
+        <div class="mode-bar">
+          <div class="mode-selector">
+            <span class="mode-label">Mode:</span>
+            <div class="mode-buttons">
+              <button id="modeQuickBtn" class="mode-btn">⚡ Quick Match</button>
+              <button id="modeBotBtn" class="mode-btn">Play vs Bot</button>
+              <button id="modeFriendBtn" class="mode-btn">Play with Friend</button>
+              <button id="modeAnalyzeBtn" class="mode-btn active">Free Analysis</button>
+              <button id="modeBooksBtn" class="mode-btn">📚 Books</button>
+            </div>
+          </div>
+          <div id="botControls" class="bot-controls" style="display: none;">
+            <div class="bot-setting">
+              <label for="botRatingSelect">Bot Elo:</label>
+              <select id="botRatingSelect" class="styled-select">
+                <option value="800">800 (Beginner)</option>
+                <option value="1100">1100 (Casual)</option>
+                <option value="1400" selected>1400 (Intermediate)</option>
+                <option value="1700">1700 (Advanced)</option>
+                <option value="2000">2000 (Expert)</option>
+                <option value="2500">2500+ (Master / Stockfish Max)</option>
+              </select>
+            </div>
+            <div class="bot-setting">
+              <label for="botSideSelect">Play as:</label>
+              <select id="botSideSelect" class="styled-select">
+                <option value="w" selected>White</option>
+                <option value="b">Black</option>
+              </select>
+            </div>
+            <button id="startBotGameBtn" class="pill-btn bot-action-btn">New Game</button>
+          </div>
+          <!-- Quick Match page (rendered by features.js) -->
+          <div id="quickMatchControls" class="bot-controls quick-match-box" style="display: none;" aria-live="polite"></div>
+          <!-- Play with Friend Controls -->
+          <div id="friendControls" class="bot-controls friend-controls-box" style="display: none;">
+            <div class="friend-btn-row">
+              <button id="quickMatchBtn" class="pill-btn highlight-btn">⚡ Quick Match</button>
+              <button id="createRoomBtn" class="pill-btn highlight-btn">Create Room</button>
+              <div class="join-group-box">
+                <input type="text" id="roomCodeInput" placeholder="Room Code" class="styled-select" style="width: 100px; text-transform: uppercase;" maxlength="6" />
+                <button id="joinRoomBtn" class="pill-btn">Join</button>
+              </div>
+              <button id="friendsBtn" class="pill-btn">👥 Friends</button>
+              <button id="matchHistoryBtn" class="pill-btn">📜 History</button>
+            </div>
+            <div id="activeRoomInfo" class="active-room-bar" style="display: none;">
+              <div class="active-room-header">
+                <span class="room-code-tag">Room: <strong id="activeRoomCode">------</strong></span>
+                <span class="room-code-tag" id="activeTimeControl">⏱ No Timer</span>
+                <button id="copyRoomCodeBtn" class="pill-btn">📋 Copy</button>
+                <button id="offerDrawBtn" class="pill-btn">🤝 Draw</button>
+                <button id="resignBtn" class="pill-btn resign-danger-btn">🏳️ Resign (-8)</button>
+                <button id="leaveGameBtn" class="pill-btn leave-game-btn">🚪 Leave Game</button>
+              </div>
+              <div class="voice-chat-row">
+                <div class="voice-status-box">
+                  <span id="voiceStatusDot" class="voice-dot off"></span>
+                  <span id="voiceStatusText" class="voice-text">Live Voice Chat: OFF</span>
+                </div>
+                <button id="toggleMicBtn" class="pill-btn mic-action-btn">🎙️ Turn Mic ON</button>
+                <button id="toggleSpeakerBtn" class="pill-btn speaker-action-btn">🔊 Speaker ON</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Top Captured Pieces Bar (Opponent / Black perspective by default) -->
+        <div class="captured-bar" id="topCapturedBar">
+          <div class="player-tag">
+            <span class="player-dot black-dot"></span>
+            <span class="player-name" id="topPlayerName">Black</span>
+            <button type="button" id="topMicBtn" class="board-mic-btn" style="display:none;" aria-label="Microphone status">🔇 OFF</button>
+          </div>
+          <div class="captured-pieces-list" id="topCapturedPieces"></div>
+          <span class="material-advantage" id="topMaterialAdv"></span>
+          <div id="blackClock" class="chess-clock captured-clock" style="display:none;">10:00</div>
+        </div>
+
+        <div class="board-and-eval">
+          <!-- Live Vertical Evaluation Bar -->
+          <div class="eval-bar-container" id="evalBarContainer" title="Live Stockfish Evaluation">
+            <div class="eval-bar-black" id="evalBarBlack"></div>
+            <div class="eval-bar-white" id="evalBarWhite" style="height: 50%;"></div>
+            <span class="eval-bar-score" id="evalBarText">0.0</span>
+          </div>
+
+          <!-- Chessboard + SVG Overlay for Best Move Arrow -->
+          <div class="board-relative-box" id="boardRelativeBox">
+            <div id="myBoard" class="board-wrapper"></div>
+            <!-- Waiting-for-opponent overlay (challenge / room not yet accepted) -->
+            <div id="waitingOverlay" class="waiting-overlay" style="display:none;">
+              <button type="button" id="cancelChallengeBtn" class="waiting-close-btn" title="Cancel challenge" aria-label="Cancel challenge">✕</button>
+              <div class="waiting-spinner"></div>
+              <div class="waiting-text" id="waitingText">Waiting for Opponent...</div>
+              <div class="waiting-detail" id="waitingDetail" style="display:none;"></div>
+              <div class="waiting-sub" id="waitingSub">The match starts once your opponent accepts.</div>
+            </div>
+            <svg id="arrowOverlay" class="arrow-overlay" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <defs>
+                <marker id="arrowhead" markerWidth="3.5" markerHeight="3.5" refX="2.3" refY="1.75" orient="auto">
+                  <polygon points="0 0, 3.5 1.75, 0 3.5" fill="rgba(56, 189, 248, 0.9)" />
+                </marker>
+              </defs>
+              <line id="bestMoveArrow" x1="0" y1="0" x2="0" y2="0" stroke="rgba(56, 189, 248, 0.85)" stroke-width="2.4" stroke-linecap="round" marker-end="url(#arrowhead)" visibility="hidden" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Bottom Captured Pieces Bar (Player / White perspective by default) -->
+        <div class="captured-bar bottom-captured-bar" id="bottomCapturedBar">
+          <div class="player-tag">
+            <span class="player-dot white-dot"></span>
+            <span class="player-name" id="bottomPlayerName">White</span>
+            <button type="button" id="bottomMicBtn" class="board-mic-btn" style="display:none;" aria-label="Microphone status">🔇 OFF</button>
+          </div>
+          <div class="captured-pieces-list" id="bottomCapturedPieces"></div>
+          <span class="material-advantage" id="bottomMaterialAdv"></span>
+          <div id="whiteClock" class="chess-clock captured-clock" style="display:none;">10:00</div>
+        </div>
+
+        <div class="board-controls">
+          <button id="undoBtn" class="control-btn">↩ Undo</button>
+          <button id="redoBtn" class="control-btn">↪ Redo</button>
+          <button id="flipBtn" class="control-btn">⇅ Flip</button>
+          <button id="playBestBtn" class="control-btn highlight-btn">⚡ Play Best</button>
+          <button id="resetBtn" class="control-btn active-outline">↺ Reset</button>
+        </div>
+        <!-- Opening / Defence review navigator (shown by Books > Review Analysis) -->
+        <div id="openingReviewBar" class="opening-review-bar" style="display:none;">
+          <div class="opening-review-head">
+            <div class="opening-review-title"><span class="label">Opening Review</span><strong id="orTitle"></strong></div>
+            <button type="button" id="orCloseBtn" class="opening-review-close" title="Close review" aria-label="Close review">✕</button>
+          </div>
+          <div class="opening-review-status" id="orStatus"></div>
+          <div class="opening-review-controls">
+            <button type="button" id="orStartBtn" class="control-btn" title="Start">⏮</button>
+            <button type="button" id="orPrevBtn" class="control-btn" title="Previous move">◀</button>
+            <button type="button" id="orNextBtn" class="control-btn highlight-btn" title="Next move">▶</button>
+            <button type="button" id="orEndBtn" class="control-btn" title="End">⏭</button>
+            <button type="button" id="orAutoBtn" class="control-btn">▶ Auto</button>
+          </div>
+          <div id="orMoves" class="opening-review-moves"></div>
+        </div>
+        <div id="friendMatchResultPanel" class="friend-match-result-panel" style="display:none;"></div>
+      </section>
+
+      <!-- Right: Analysis Panel -->
+      <section class="analysis-card">
+        <div class="tabs">
+          <button class="tab active" data-tab="analysisTab">Analysis</button>
+          <button class="tab" data-tab="reviewTab">Game Review & Elo</button>
+          <button class="tab" data-tab="movesTab">Move List</button>
+          <button class="tab" data-tab="evalTab">Evaluation</button>
+          <button class="tab" data-tab="chatTab" id="chatTabBtn" style="display: none;">Live Chat 💬</button>
+        </div>
+
+        <!-- TAB 1: ANALYSIS -->
+        <div id="analysisTab" class="tab-content active-content">
+          <div class="panel-box best-move-box">
+            <div class="best-move-header">
+              <span class="label" id="panelPrimaryLabel">Best Move Suggestion</span>
+              <span class="engine-badge" id="engineBadge">Stockfish Active</span>
+            </div>
+            <h2 id="bestMoveText">Calculating...</h2>
+            <p id="engineSubtext">Initializing Stockfish WebAssembly Engine...</p>
+            <div class="pv-line" id="pvLineText">Line: Waiting for engine output...</div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="panel-box">
+              <span class="label">Evaluation</span>
+              <div class="stat-val" id="evalScore">+0.00</div>
+            </div>
+            <div class="panel-box">
+              <span class="label">Depth</span>
+              <div class="stat-val" id="depthVal">0 / 15</div>
+            </div>
+            <div class="panel-box opening-panel-box">
+              <span class="label">Opening / Gambit</span>
+              <div class="stat-val opening-badge" id="openingName">Starting Position</div>
+            </div>
+            <div class="panel-box">
+              <span class="label">Status</span>
+              <div class="stat-val status-ready" id="gameStatus">White to move</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: GAME REVIEW, BLUNDERS & ELO RATING -->
+        <div id="reviewTab" class="tab-content">
+          <div class="panel-box review-hero-card">
+            <div class="review-header">
+              <div>
+                <span class="label">Estimated Game Performance</span>
+                <div class="performance-elo" id="estEloVal">-- Elo</div>
+              </div>
+              <div class="accuracy-circle">
+                <span class="accuracy-val" id="accuracyVal">--%</span>
+                <span class="accuracy-sub">Accuracy</span>
+              </div>
+            </div>
+            <p class="review-summary" id="reviewSummaryText">Make moves to generate your live game review, accuracy score, and blunder report.</p>
+          </div>
+
+          <!-- Blunders & Mistakes Metrics Grid -->
+          <div class="panel-box">
+            <span class="label">Move Quality Breakdown</span>
+            <div class="quality-grid">
+              <div class="quality-item quality-best">
+                <span class="quality-badge">★ Best</span>
+                <span class="quality-count" id="countBest">0</span>
+              </div>
+              <div class="quality-item quality-good">
+                <span class="quality-badge">✓ Good</span>
+                <span class="quality-count" id="countGood">0</span>
+              </div>
+              <div class="quality-item quality-inaccuracy">
+                <span class="quality-badge">?! Inaccuracy</span>
+                <span class="quality-count" id="countInacc">0</span>
+              </div>
+              <div class="quality-item quality-mistake">
+                <span class="quality-badge">? Mistake</span>
+                <span class="quality-count" id="countMistake">0</span>
+              </div>
+              <div class="quality-item quality-blunder">
+                <span class="quality-badge">?? Blunder</span>
+                <span class="quality-count" id="countBlunder">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Player vs Opponent Stats -->
+          <div class="panel-box">
+            <span class="label">Side Comparison (White vs Black)</span>
+            <div class="side-comparison">
+              <div class="side-col">
+                <strong>White</strong>
+                <div id="whiteQualityStats">0 Blunders • 0 Mistakes</div>
+              </div>
+              <div class="side-divider"></div>
+              <div class="side-col">
+                <strong>Black</strong>
+                <div id="blackQualityStats">0 Blunders • 0 Mistakes</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: MOVE LIST -->
+        <div id="movesTab" class="tab-content">
+          <div class="panel-box history-box">
+            <div class="move-list-header-row"><span class="label">Full Move History & Feedback</span><button id="copyMovesBtn" class="pill-btn">📋 Copy Moves</button></div>
+            <div id="moveHistory" class="move-list-empty">No moves yet</div>
+          </div>
+        </div>
+
+        <!-- TAB 4: EVALUATION DETAILS -->
+        <div id="evalTab" class="tab-content">
+          <div class="panel-box">
+            <span class="label">Win Probability Breakdown</span>
+            <div class="win-prob-bar">
+              <div id="whiteProbBar" class="prob-white" style="width: 50%">White 50%</div>
+              <div id="blackProbBar" class="prob-black" style="width: 50%">Black 50%</div>
+            </div>
+            <p class="eval-explain" id="evalExplainText">Position is balanced.</p>
+          </div>
+          <div class="panel-box">
+            <span class="label">Engine Depth Setting</span>
+            <input type="range" id="depthSlider" min="8" max="20" value="15" style="width:100%;" />
+            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">Target Depth: <span id="depthSliderVal">15</span></div>
+          </div>
+        </div>
+
+        
+        <!-- TAB 5: LIVE MULTIPLAYER CHAT -->
+        <div id="chatTab" class="tab-content">
+          <div class="panel-box chat-panel-box">
+            <div class="chat-header-bar">
+              <span class="label">In-Game Live Chat</span>
+              <span id="chatOpponentName" class="engine-badge">Waiting for opponent...</span>
+            </div>
+            <div id="chatMessages" class="chat-messages-scroll">
+              <div class="chat-empty-msg">Connect to a multiplayer room to chat in real-time.</div>
+            </div>
+            <form id="chatForm" class="chat-input-form">
+              <input type="text" id="chatInput" placeholder="Type a message to your opponent..." autocomplete="off" />
+              <button type="submit" class="pill-btn highlight-btn">Send</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Common Quick Move History Preview -->
+        <div class="panel-box history-box" id="quickHistoryBox">
+          <span class="label">Recent Moves</span>
+          <div id="quickMoveHistory" class="move-list-empty">No moves yet</div>
+        </div>
+
+        <!-- Copy Analysis Action Button -->
+        <div class="panel-box action-box">
+          <button id="copyAnalysisBtn" class="copy-analysis-btn">📋 Copy Full Analysis Report</button>
+          <div id="copySuccessMsg" class="copy-success-msg" style="display: none;">✓ Copied Analysis Report to Clipboard!</div>
+        </div>
+
+        <!-- Load FEN -->
+        <div class="panel-box pgn-box">
+          <span class="label">Load FEN Position</span>
+          <div class="fen-input-row">
+            <input type="text" id="fenInput" placeholder="Paste FEN string here..." />
+            <button id="loadFenBtn" class="control-btn">Load</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Libraries: jQuery, Chess.js, Chessboard.js -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <!-- Supabase (backend) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase-compat.js"></script>
+  <script src="books_data.js"></script>
+  <script src="script.js"></script>
+
+
+  <!-- Books Modal (structure only - add content later in BOOKS_DATA in script.js) -->
+  <div id="booksModal" class="skill-modal-overlay" style="display:none;">
+    <div class="skill-modal-window books-modal-window">
+      <button type="button" id="closeBooksModalX" class="books-close-x" aria-label="Close Books" title="Close">×</button>
+      <div class="modal-chess-icon">📚</div>
+      <h2>Books</h2>
+      <div class="friends-tabs books-tabs">
+        <button class="friends-tab books-tab active" data-books-cat="openings">Openings</button>
+        <button class="friends-tab books-tab" data-books-cat="defences">Defences</button>
+        <button class="friends-tab books-tab" data-books-cat="other">Other Learning Materials</button>
+      </div>
+      <div id="booksPanelOpenings" class="books-panel" data-books-panel="openings"></div>
+      <div id="booksPanelDefences" class="books-panel" data-books-panel="defences" style="display:none;"></div>
+      <div id="booksPanelOther" class="books-panel" data-books-panel="other" style="display:none;"></div>
+      <button id="closeBooksModalBtn" class="pill-btn">Close</button>
+    </div>
+  </div>
+
+  <!-- Player Profile Inspection Modal -->
+  <div id="playerProfileModal" class="skill-modal-overlay" style="display:none;">
+    <div class="skill-modal-window player-profile-window">
+      <div id="playerProfileBody"></div>
+      <button id="closePlayerProfileBtn" class="pill-btn">Close</button>
+    </div>
+  </div>
+
+  <!-- Match Review Modal -->
+  <div id="matchReviewModal" class="skill-modal-overlay" style="display:none;">
+    <div class="skill-modal-window match-review-window">
+      <h2 id="matchReviewTitle">Match Review</h2>
+      <p class="modal-subtext" id="matchReviewSub"></p>
+      <div id="reviewBoard" class="review-board"></div>
+      <div class="review-controls">
+        <button id="reviewStartBtn" class="control-btn">⏮</button>
+        <button id="reviewPrevBtn" class="control-btn">◀</button>
+        <button id="reviewNextBtn" class="control-btn">▶</button>
+        <button id="reviewEndBtn" class="control-btn">⏭</button>
+        <button id="reviewFlipBtn" class="control-btn">⇅</button>
+      </div>
+      <div id="reviewMoveList" class="review-move-list"></div>
+      <div class="profile-actions">
+        <button id="reviewOpenAnalysisBtn" class="pill-btn highlight-btn">Open in Analysis</button>
+        <button id="closeMatchReviewBtn" class="pill-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Friend Time Control Modal -->
+  <div id="friendTimeModal" class="skill-modal-overlay" style="display:none;">
+    <div class="skill-modal-window friend-time-modal-window">
+      <div class="modal-chess-icon">⏱</div>
+      <h2 id="friendTimeTitle">Choose Time Control</h2>
+      <p class="modal-subtext" id="friendTimeSub">Select how long each player gets for the game.</p>
+      <div class="time-control-grid">
+        <button class="time-control-card" data-time-control="600">
+          <strong>♟ Rapid</strong><span>10 min</span>
+        </button>
+        <button class="time-control-card" data-time-control="300">
+          <strong>⚡ Blitz</strong><span>5 min</span>
+        </button>
+        <button class="time-control-card" data-time-control="60">
+          <strong>🔥 Bullet</strong><span>1 min</span>
+        </button>
+        <button class="time-control-card" data-time-control="0">
+          <strong>🕐 No Timer</strong><span>Unlimited</span>
+        </button>
+      </div>
+      <button id="cancelFriendTimeBtn" class="pill-btn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Pawn Promotion Modal -->
+  <div id="promotionModal" class="skill-modal-overlay" style="display:none;">
+    <div class="skill-modal-window promotion-modal-window">
+      <div class="modal-chess-icon">♟</div>
+      <h2>Choose Promotion</h2>
+      <p class="modal-subtext">Select the piece you want your pawn to become.</p>
+      <div class="promotion-grid">
+        <button class="promotion-choice" data-promotion="q"><span>♛</span><strong>Queen</strong></button>
+        <button class="promotion-choice" data-promotion="r"><span>♜</span><strong>Rook</strong></button>
+        <button class="promotion-choice" data-promotion="b"><span>♝</span><strong>Bishop</strong></button>
+        <button class="promotion-choice" data-promotion="n"><span>♞</span><strong>Knight</strong></button>
+      </div>
+      <button id="cancelPromotionBtn" class="pill-btn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Friends / Match History Modal -->
+  <div id="friendsModal" class="skill-modal-overlay" style="display:none;">
+    <div class="skill-modal-window friends-modal-window">
+      <div class="modal-chess-icon">👥</div>
+      <h2>Friends & Match History</h2>
+      <div class="friends-tabs">
+        <button id="friendsTabBtn" class="friends-tab active">Friends</button>
+        <button id="requestsTabBtn" class="friends-tab">Requests</button>
+        <button id="historyTabBtn" class="friends-tab">History</button>
+      </div>
+      <div id="friendsPanel">
+        <div class="friend-search-row">
+          <input id="friendSearchInput" class="profile-input" placeholder="Search username" maxlength="20" />
+          <button id="friendSearchBtn" class="pill-btn highlight-btn">Search</button>
+        </div>
+        <div id="friendSearchResults" class="friend-list"></div>
+        <div class="friend-section-title">Your Friends</div>
+        <div id="friendsList" class="friend-list"></div>
+      </div>
+      <div id="requestsPanel" style="display:none;">
+        <div class="friend-section-title">Incoming Requests</div>
+        <div id="incomingRequests" class="friend-list"></div>
+        <div class="friend-section-title">Sent Requests</div>
+        <div id="outgoingRequests" class="friend-list"></div>
+
+      </div>
+      <div id="historyPanel" style="display:none;">
+        <div id="matchHistoryList" class="friend-list"></div>
+      </div>
+      <button id="closeFriendsModalBtn" class="pill-btn">Close</button>
+    </div>
+  </div>
+
+  <!-- Terms & Conditions Modal -->
+  <div id="termsModal" class="skill-modal-overlay terms-modal-overlay" style="display: none;">
+    <div class="skill-modal-window terms-modal-window">
+      <div class="modal-chess-icon">♜</div>
+      <h2>Terms & Conditions</h2>
+      <p class="modal-subtext">Please read and accept the terms before using B Chess Analyzer.</p>
+      <div class="terms-scroll-box">
+        <h3>1. Acceptance</h3>
+        <p>By using B Chess Analyzer, you agree to these Terms & Conditions and to use the service responsibly.</p>
+        <h3>2. Fair Play</h3>
+        <p>Do not use the service for cheating, harassment, abuse, impersonation, or any activity that disrupts another player's experience.</p>
+        <h3>3. Play with Friends</h3>
+        <p>Online games are played between users through the multiplayer room system. Room codes should be shared only with people you intend to play with.</p>
+        <h3>4. Voice Chat</h3>
+        <p>If you use live voice chat, communicate respectfully. Do not use it for abusive, threatening, or unlawful content.</p>
+        <h3>5. Service Availability</h3>
+        <p>The service may be updated, interrupted, or changed from time to time. Game results and ratings may be affected by technical issues.</p>
+        <h3>6. Responsibility</h3>
+        <p>You are responsible for your use of the website and for keeping your Google account secure. Do not share your account credentials.</p>
+        <h3>7. Updates</h3>
+        <p>These terms may be updated when the service or its features change. Continued use after an update means you accept the revised terms.</p>
+      </div>
+      <label class="terms-check-row">
+        <input type="checkbox" id="termsAcceptCheckbox" />
+        <span>I have read and agree to the Terms &amp; Conditions.</span>
+      </label>
+      <div id="termsError" class="terms-error"></div>
+      <div class="profile-actions">
+        <button id="acceptTermsBtn" class="pill-btn highlight-btn">Accept &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Profile Setup / Edit Modal -->
+  <div id="profileModal" class="skill-modal-overlay" style="display: none;">
+    <div class="skill-modal-window profile-modal-window">
+      <div class="modal-chess-icon">♟</div>
+      <h2>Set Up Your Profile</h2>
+      <p class="modal-subtext">Choose the username and profile picture you want to use on B Chess Analyzer.</p>
+      <label class="profile-field-label" for="profileUsernameInput">Username</label>
+      <input id="profileUsernameInput" class="profile-input" type="text" maxlength="20" placeholder="Enter username" autocomplete="nickname" />
+      <label class="profile-field-label" for="profilePhotoInput">Profile Picture</label>
+      <input id="profilePhotoInput" class="profile-file-input" type="file" accept="image/*" />
+      <div class="profile-preview-wrap">
+        <img id="profilePreviewImg" class="profile-preview-img" src="" alt="Profile preview" style="display:none;" />
+        <span id="profilePreviewFallback" class="profile-preview-fallback">P</span>
+      </div>
+      <div class="profile-actions">
+        <button id="saveProfileBtn" class="pill-btn highlight-btn">Save Profile</button>
+        <button id="cancelProfileBtn" class="pill-btn" style="display:none;">Cancel</button>
+      </div>
+      <div id="profileSaveStatus" class="profile-save-status"></div>
+    </div>
+  </div>
+
+  <!-- First-Time User Skill Level Selection Modal -->
+  <div id="skillModal" class="skill-modal-overlay" style="display: none;">
+    <div class="skill-modal-window">
+      <div class="modal-chess-icon">♚</div>
+      <h2>Select Your Starting Skill Level</h2>
+      <p class="modal-subtext">This establishes your initial multiplayer Elo rating on B Chess Analyzer.</p>
+      <div class="skill-level-grid">
+        <button class="skill-card skill-beginner" onclick="selectSkillLevel('beginner')">
+          <div class="skill-card-title">Beginner</div>
+          <div class="skill-card-elo">800 Elo</div>
+          <div class="skill-card-desc">Learning basic chess concepts & tactics</div>
+        </button>
+        <button class="skill-card skill-intermediate" onclick="selectSkillLevel('intermediate')">
+          <div class="skill-card-title">Intermediate</div>
+          <div class="skill-card-elo">1200 Elo</div>
+          <div class="skill-card-desc">Familiar with openings & strategy</div>
+        </button>
+        <button class="skill-card skill-advanced" onclick="selectSkillLevel('advanced')">
+          <div class="skill-card-title">Advanced</div>
+          <div class="skill-card-elo">1600 Elo</div>
+          <div class="skill-card-desc">Experienced competitive club player</div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remote WebRTC Voice Chat Audio Element -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+  <script src="pwa.js"></script>
+  <script src="ux.js"></script>
+
+  <!-- Hidden Admin Login (Ctrl + Arrow Up, or tap the ♟ logo 5 times) -->
+  <div id="adminLoginModal" class="skill-modal-overlay admin-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
+    <div class="skill-modal-window admin-login-window">
+      <button type="button" id="adminLoginCloseX" class="books-close-x" aria-label="Close" title="Close">×</button>
+      <div class="modal-chess-icon">🔐</div>
+      <h2 id="adminLoginTitle">Admin Login</h2>
+      <p class="modal-subtext">Only the authorised admin Google account can open this panel.</p>
+      <div id="adminSignedInAs" class="admin-otp-sent"></div>
+      <button type="button" id="adminGoogleBtn" class="pill-btn highlight-btn admin-wide-btn">Verify admin access</button>
+      <div id="adminLoginMsg" class="admin-msg" role="status" aria-live="polite"></div>
+      <p class="admin-fine-print">Every admin action is checked again on the server.</p>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard (data loads only after the backend confirms the admin session) -->
+  <div id="adminDashboard" class="admin-dashboard-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="adminDashTitle">
+    <div class="admin-dashboard">
+      <header class="admin-dash-head">
+        <div><span class="admin-dash-kicker">♟ B Chess Analyzer</span><h2 id="adminDashTitle">Admin Dashboard</h2></div>
+        <div class="admin-dash-user"><span id="adminDashPhone"></span><button type="button" id="adminLogoutBtn" class="pill-btn signout-pill">Logout</button></div>
+      </header>
+      <section class="admin-section">
+        <h3>📚 Learning Materials Management</h3>
+        <div id="adminStats" class="admin-stats"></div>
+        <form id="adminMaterialForm" class="admin-form" novalidate>
+          <h4 id="adminFormTitle">Add New Learning Material</h4>
+          <label class="profile-field-label" for="adminMatTitle">Title</label>
+          <input id="adminMatTitle" class="profile-input" type="text" maxlength="120" placeholder="e.g. King's Gambit" autocomplete="off" />
+          <label class="profile-field-label" for="adminMatUrl">URL</label>
+          <input id="adminMatUrl" class="profile-input" type="url" maxlength="500" placeholder="https://www.instagram.com/reel/..." autocomplete="off" />
+          <label class="profile-field-label" for="adminMatType">Resource Type</label>
+          <select id="adminMatType" class="styled-select admin-select"><option value="video">Video</option></select>
+          <label class="admin-check"><input type="checkbox" id="adminMatPublished" checked /> Published (visible to users)</label>
+          <div class="admin-form-actions">
+            <button type="submit" id="adminSaveBtn" class="pill-btn highlight-btn">💾 Save</button>
+            <button type="button" id="adminCancelEditBtn" class="pill-btn" style="display:none;">Cancel Edit</button>
+          </div>
+          <div id="adminFormMsg" class="admin-msg" role="status" aria-live="polite"></div>
+        </form>
+        <div class="admin-list-head"><h4>All Materials</h4><input id="adminMatFilter" class="profile-input" type="search" placeholder="Search materials…" autocomplete="off" /></div>
+        <div id="adminMaterialsList" class="admin-materials-list"></div>
+      </section>
+    </div>
+  </div>
+  <script src="features.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "B Chess Analyzer",
+  "short_name": "B Chess",
+  "description": "Analyze chess, play with friends and explore opening books.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b171b",
+  "theme_color": "#0b171b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

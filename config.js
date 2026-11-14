@@ -1,11 +1,7 @@
-/* =====================================================================
-   B CHESS ANALYZER — Supabase settings
-   Supabase → Project Settings → API (or "API Keys"):
-     url     = Project URL          e.g. https://abcd1234.supabase.co
-     anonKey = anon / publishable key (safe to put in a website)
-   NEVER put the service_role / secret key here.
-   ===================================================================== */
+
+/* B CHESS ANALYZER — Supabase Configuration */
+
 window.SUPABASE_CONFIG = {
-  url: 'https://YOUR-PROJECT-ID.supabase.co',
-  anonKey: 'YOUR-ANON-PUBLIC-KEY'
+  url: 'https://divkgnskvnnoaocuxjhb.supabase.co',
+  anonKey: 'sb_publishable_LscLmFV1CkpEUWmff1AVAA_8AsgI2B2'
 };

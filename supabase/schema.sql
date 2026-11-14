@@ -1,7 +1,7 @@
 -- =====================================================================
 -- B Chess Analyzer — Supabase backend
 -- Paste this whole file into Supabase → SQL Editor → New query → Run.
--- It is safe to run again (it only creates/replaces things).
+-- Review changes before rerunning: this script replaces functions and policies.
 --
 -- What it creates
 --   1. rtdb          : JSON documents that replace the Firebase Realtime Database
@@ -44,7 +44,7 @@ create index if not exists rtdb_username_idx on public.rtdb ((data->>'username')
 
 alter table public.rtdb enable row level security;
 drop policy if exists rtdb_read on public.rtdb;
--- Same access as the old Firebase rules: any signed-in user can read.
+-- Compatibility: signed-in users can read all documents (privacy review required).
 create policy rtdb_read on public.rtdb for select to authenticated using (true);
 -- No insert/update/delete policies: every write goes through the functions below.
 
@@ -128,6 +128,82 @@ begin
   return auth.uid();
 end $$;
 
+-- Security boundary for client-submitted RTDB writes.
+-- Only the signed-in owner may modify users/{uid}. Other users' inboxes,
+-- friend lists and ratings must be updated through dedicated verified RPCs.
+-- Rooms can be created by their creator, then changed only by participants.
+-- This protects cross-account documents but is NOT full server-side chess
+-- move validation. Do not launch rated public matches until that is added.
+create or replace function public.rtdb_authorize_write(p_doc text, p_path text[], p_value jsonb)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_uid uuid := auth.uid();
+  v_parts text[] := string_to_array(p_doc, '/');
+  v_room jsonb;
+  v_creator text;
+  v_guest text;
+  v_field text;
+begin
+  if v_uid is null then raise exception 'permission-denied: Login required'; end if;
+  if p_doc is null or length(p_doc) > 300 or array_length(v_parts,1) <> 2
+     or v_parts[2] = '' then
+    raise exception 'permission-denied: Invalid document path';
+  end if;
+  if v_parts[1] = 'users' then
+    if v_parts[2] <> v_uid::text then
+      raise exception 'permission-denied: Cannot modify another user';
+    end if;
+    -- No client-controlled rating: only a verified game-result service may change it.
+    if coalesce(cardinality(p_path),0) = 0 then
+      if p_value is not null and p_value <> 'null'::jsonb
+         and jsonb_typeof(p_value) = 'object' and p_value ? 'rating' then
+        raise exception 'permission-denied: Profile rating is server-managed';
+      end if;
+      -- Whole-document writes may erase protected fields; disallow after creation.
+      if exists(select 1 from public.rtdb where doc=p_doc and data is not null) then
+        raise exception 'permission-denied: Whole-profile replacement blocked';
+      end if;
+    else
+      v_field := p_path[1];
+      if v_field in ('rating','elo','isAdmin','admin','role','uid','id') then
+        raise exception 'permission-denied: Protected profile field';
+      end if;
+    end if;
+    return;
+  elsif v_parts[1] = 'rooms' then
+    select data into v_room from public.rtdb where doc=p_doc;
+    if v_room is null then
+      if coalesce(cardinality(p_path),0) <> 0 or p_value is null
+         or jsonb_typeof(p_value) <> 'object'
+         or p_value->>'creatorId' <> v_uid::text then
+        raise exception 'permission-denied: Only creator can create room';
+      end if;
+      return;
+    end if;
+    v_creator := v_room->>'creatorId';
+    v_guest := v_room->>'guestId';
+    if v_uid::text <> coalesce(v_creator,'') and v_uid::text <> coalesce(v_guest,'') then
+      -- A joining player can claim an unoccupied guest slot only.
+      if v_guest is null and coalesce(cardinality(p_path),0) = 1
+         and p_path[1] = 'guestId' and p_value = to_jsonb(v_uid::text) then
+        return;
+      end if;
+      raise exception 'permission-denied: Not a room participant';
+    end if;
+    -- No participant may replace the entire room or change its ownership.
+    if coalesce(cardinality(p_path),0) = 0
+       or p_path[1] in ('creatorId','guestId','matchId','quickMatch') then
+      raise exception 'permission-denied: Protected room field';
+    end if;
+    return;
+  elsif v_parts[1] = 'matchmaking' then
+    -- Legacy matchmaking uses nested paths; deny direct writes until migrated.
+    raise exception 'permission-denied: Use secure quick_match_join RPC';
+  end if;
+  raise exception 'permission-denied: Unknown document namespace';
+end $$;
+revoke all on function public.rtdb_authorize_write(text,text[],jsonb) from public, anon, authenticated;
+
 -- Internal: apply a list of operations. Each op is one of
 --   {"d": doc, "p": [path inside doc], "v": value-or-null}   set / remove
 --   {"prefix": "users/abc"}                                  remove every doc under a path
@@ -141,6 +217,7 @@ begin
     if op ? 'prefix' then
       pref := op->>'prefix';
       if pref is null or pref = '' then raise exception 'invalid-argument: Refusing to clear the whole database.'; end if;
+      -- Prefix deletion is internal housekeeping only, never exposed to clients.
       update rtdb set data = null, version = version + 1, updated_at = now()
         where starts_with(doc, pref || '/') and data is not null;
       continue;
@@ -160,11 +237,28 @@ begin
 end $$;
 revoke all on function public.rtdb_apply_internal(jsonb) from public, anon, authenticated;
 
--- Public: any signed-in user may write (same as the old Firebase rules).
+-- Public writes are now scoped to user-owned documents and room participants.
 create or replace function public.rtdb_apply(p_ops jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
+declare i int;
 begin
   perform public.rtdb_require_user();
+  if p_ops is null or jsonb_typeof(p_ops) <> 'array' or jsonb_array_length(p_ops) > 40 then
+    raise exception 'invalid-argument: Expected up to 40 write operations';
+  end if;
+  -- Validate every operation before applying any changes.
+    for i in 0 .. jsonb_array_length(p_ops)-1 loop
+      if p_ops->i ? 'prefix' then
+        raise exception 'permission-denied: Prefix deletion forbidden';
+      end if;
+      if jsonb_typeof(p_ops->i->'p') not in ('array') and p_ops->i ? 'p' then
+        raise exception 'invalid-argument: Invalid path';
+      end if;
+      perform public.rtdb_authorize_write(
+        p_ops->i->>'d',
+        coalesce(array(select jsonb_array_elements_text(coalesce(p_ops->i->'p','[]'::jsonb))), '{}'::text[]),
+        p_ops->i->'v');
+    end loop;
   return public.rtdb_apply_internal(p_ops);
 end $$;
 
@@ -174,6 +268,7 @@ language plpgsql security definer set search_path = public as $$
 declare cur record; newv jsonb;
 begin
   perform public.rtdb_require_user();
+  perform public.rtdb_authorize_write(p_doc, p_path, p_value);
   select data, version into cur from rtdb where doc = p_doc for update;
   if coalesce(cur.version, 0) <> coalesce(p_expected, 0) then
     return jsonb_build_object('ok', false, 'data', cur.data, 'version', coalesce(cur.version, 0));
@@ -228,7 +323,7 @@ begin
   update rtdb_sessions set last_seen = now() where session = p_session and uid = v_uid;
   existed := found;
   if not existed then
-    insert into rtdb_sessions(session, uid) values (p_session, v_uid) on conflict (session) do update set last_seen = now();
+    insert into rtdb_sessions(session, uid) values (p_session, v_uid) on conflict (session) do update set last_seen = now() where rtdb_sessions.uid = excluded.uid;
   end if;
   perform public.rtdb_reap();
   return jsonb_build_object('existed', existed, 'now', public.rtdb_now_ms());
@@ -236,12 +331,21 @@ end $$;
 
 create or replace function public.rtdb_ondisconnect_add(p_session uuid, p_path text, p_ops jsonb) returns void
 language plpgsql security definer set search_path = public as $$
-declare v_uid uuid := public.rtdb_require_user();
+declare v_uid uuid := public.rtdb_require_user(); i int;
 begin
-  insert into rtdb_sessions(session, uid) values (p_session, v_uid) on conflict (session) do update set last_seen = now();
+  insert into rtdb_sessions(session, uid) values (p_session, v_uid) on conflict (session) do update set last_seen = now() where rtdb_sessions.uid = excluded.uid;
   if (select count(*) from rtdb_ondisconnect where session = p_session) > 200 then
     raise exception 'resource-exhausted: Too many onDisconnect operations.';
   end if;
+  if p_ops is null or jsonb_typeof(p_ops) <> 'array' or jsonb_array_length(p_ops) > 10 then
+    raise exception 'invalid-argument: Invalid onDisconnect operations';
+  end if;
+  for i in 0 .. jsonb_array_length(p_ops)-1 loop
+    if p_ops->i ? 'prefix' then raise exception 'permission-denied: Prefix delete forbidden'; end if;
+    perform public.rtdb_authorize_write(p_ops->i->>'d',
+      coalesce(array(select jsonb_array_elements_text(coalesce(p_ops->i->'p','[]'::jsonb))), '{}'::text[]),
+      p_ops->i->'v');
+  end loop;
   insert into rtdb_ondisconnect(session, uid, path, ops) values (p_session, v_uid, p_path, p_ops);
 end $$;
 
@@ -548,7 +652,14 @@ end $$;
 -- ---------------------------------------------------------------------
 -- Permissions + Realtime
 -- ---------------------------------------------------------------------
-revoke execute on all functions in schema public from public, anon, authenticated;
+-- Revoke only application RPCs; do not change unrelated project functions.
+revoke execute on function public.rtdb_apply(jsonb), public.rtdb_cas(text,text[],bigint,jsonb),
+  public.rtdb_session_beat(uuid), public.rtdb_ondisconnect_add(uuid,text,jsonb),
+  public.rtdb_ondisconnect_cancel(uuid,text), public.rtdb_session_end(uuid),
+  public.quick_match_join(text), public.quick_match_cancel(), public.rate_material(text,int),
+  public.admin_verify_session(), public.admin_save_material(text,text,text,text,boolean),
+  public.admin_set_published(text,boolean), public.admin_delete_material(text)
+from public, anon;
 grant execute on function
   public.is_admin(), public.rtdb_now_ms(),
   public.rtdb_apply(jsonb), public.rtdb_cas(text, text[], bigint, jsonb),

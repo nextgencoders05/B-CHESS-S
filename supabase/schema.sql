@@ -1,3 +1,4 @@
+
 -- =====================================================================
 -- B Chess Analyzer — Supabase backend
 -- Paste this whole file into Supabase → SQL Editor → New query → Run.

@@ -4225,3 +4225,73 @@ function endQuickBotGame() {
   document.getElementById('pvLineText').textContent = '';
   updateBoardMicButtons();
 }
+
+/* B CHESS ANALYZER - SKILL SELECTION FIX
+   Paste at the VERY END of script.js
+*/
+
+selectSkillLevel = async function (level) {
+  if (!currentUserId || !auth.currentUser) {
+    alert("Please sign in with Google first.");
+    return;
+  }
+
+  if (!["beginner", "intermediate", "advanced"].includes(level)) {
+    alert("Please choose a valid skill level.");
+    return;
+  }
+
+  const buttons = document.querySelectorAll(
+    "#skillModal .skill-card"
+  );
+
+  buttons.forEach(button => {
+    button.disabled = true;
+  });
+
+  try {
+    if (typeof window.sbCall !== "function") {
+      throw new Error("Supabase is not connected.");
+    }
+
+    const result = await window.sbCall(
+      "set_initial_skill",
+      { p_level: level }
+    );
+
+    const rating = Number(result?.rating);
+
+    if (!Number.isFinite(rating) || rating <= 0) {
+      throw new Error("Invalid rating returned by server.");
+    }
+
+    currentUserRating = rating;
+
+    const ratingDisplay = document.getElementById(
+      "userRatingDisplay"
+    );
+
+    if (ratingDisplay) {
+      ratingDisplay.textContent = String(rating);
+    }
+
+    const modal = document.getElementById("skillModal");
+
+    if (modal) {
+      modal.style.display = "none";
+    }
+
+  } catch (error) {
+    console.error("Skill setup failed:", error);
+
+    alert(
+      "Could not save skill level: " +
+      (error.message || "Unknown error")
+    );
+
+  } finally {
+    buttons.forEach(button => {
+      button.disabled = false;
+    });
+  }
+};

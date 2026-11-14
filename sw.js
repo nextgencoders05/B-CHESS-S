@@ -1,7 +1,7 @@
 /* BCHESS_BUILD_VERSION: 2026-11-07-supabase */
-const CACHE_NAME = 'b-chess-shell-v10-supabase';
+const CACHE_NAME = 'b-chess-shell-v11-five-updates';
 const APP_SHELL = [
-  './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './books_data.js', './pwa.js',
+  './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './preferences.js', './puzzles.js', './books_data.js', './pwa.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './pieces/wb.png', './pieces/bp.png', './pieces/wk.png', './pieces/wq.png',
   './pieces/wp.png', './pieces/bn.png', './pieces/wn.png', './pieces/wr.png',

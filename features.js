@@ -73,7 +73,7 @@
     { name: 'Classical', icon: '🕰', items: ['30+0'] }
   ];
   const QM_RETRY_MS = 7000;             // re-run server pairing + heartbeat while searching
-  const QM_MAX_SEARCH_MS = 5 * 60000;   // stop searching after 5 minutes
+  const QM_MAX_SEARCH_MS = 30000;   // stop searching after 5 minutes
   const QM_ABORT_MS = 30000;            // opponent never connected to the game → abort
   const QM_DISCONNECT_MS = 60000;       // opponent left mid-game → you win after 60s
   const QM_STORAGE_KEY = 'bChessQuickMatchTime';
@@ -134,7 +134,7 @@
           <div class="qm-search-copy">
             <strong>Searching for an opponent…</strong>
             <span>${esc(qmLabel(qm.timeKey))} • <b id="qmElapsed">${qmFormatElapsed(elapsed)}</b></span>
-            <small>${elapsed > 45000 ? 'Few players online right now — still looking.' : 'You will be matched with the next player who picks the same time control.'}</small>
+            <small>Searching for the same time control. A similar-Elo bot starts after 30 seconds if no player is assigned.</small>
           </div>
           <button type="button" id="qmCancelBtn" class="pill-btn resign-danger-btn">✕ Cancel</button>
         </div>`;
@@ -173,6 +173,7 @@
       localStorage.setItem(QM_STORAGE_KEY, qm.timeKey);
       qm.message = '';
       renderQuickMatchPanel();
+      qmFindOpponent();
     }));
     const find = $id('qmFindBtn'); if (find) find.addEventListener('click', qmFindOpponent);
     const cancel = $id('qmCancelBtn'); if (cancel) cancel.addEventListener('click', qmCancelSearch);
@@ -222,78 +223,70 @@
     if (qm.unsubQueue) { try { qm.unsubQueue(); } catch (_) {} qm.unsubQueue = null; }
   }
 
+  // Each search has a unique server token. All queue operations are serialized
+  // by the migration, including cutoff/cancel versus a concurrent pairing.
   async function qmFindOpponent() {
-    if (qm.phase !== 'idle' || qm.busy) return;                  // duplicate request guard
-    if (!currentUserId) { alert('Please Sign in with Google first!'); return triggerGoogleLogin(); }
-    if (!requireTermsAccepted()) return;
-    if (currentRoomCode || isOnlineMatchActive) return alert('You are already in a game.');
-    if (typeof ensureNotificationPermission === 'function') ensureNotificationPermission();
-
-    qm.phase = 'searching';
-    qm.message = '';
-    qm.resume = null;
+    if (qm.phase !== 'idle' || qm.busy) return;
+    if (!currentUserId) return triggerGoogleLogin();
+    if (!requireTermsAccepted() || currentRoomCode || isOnlineMatchActive || quickBot) return;
+    const run = { id: crypto.randomUUID(), deadline: serverNow() + QM_MAX_SEARCH_MS, uid: currentUserId, key: qm.timeKey, cancelled: false, pending: null };
+    qm.run = run;
+    qm.phase = 'searching'; qm.message = ''; qm.resume = null;
     qm.startedAt = Date.now();
-    qm.startedServer = serverNow();
     renderQuickMatchPanel();
-
-    // Someone else may pair with us: the server marks our queue entry "matched".
-    const qmChannel = sb.channel('qm-' + currentUserId + '-' + Date.now())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quick_match_queue', filter: 'user_id=eq.' + currentUserId }, payload => {
-        const d = qmRow(payload.new && payload.new.user_id ? payload.new : null);
-        if (!d || d.status !== 'matched' || !d.roomCode || qm.phase !== 'searching') return;
-        if (tsMillis(d.matchedAt) < qm.startedServer - 10000) return; // an older finished match
-        qmHandleMatched({ roomCode: d.roomCode, color: d.color, opponent: d.opponent || {}, timeControl: d.timeKey });
-      }).subscribe();
-    qm.unsubQueue = () => sb.removeChannel(qmChannel);
-
+    const join = async () => {
+      if (qm.run !== run || run.cancelled || qm.phase !== 'searching' || run.pending) return;
+      run.pending = window.sbCall('quick_match_search', { p_search: run.id, p_time_control: run.key, p_deadline_ms: run.deadline });
+      try {
+        const result = await run.pending;
+        if (qm.run !== run || run.cancelled || qm.phase !== 'searching') return;
+        if (result.status === 'matched') qmHandleMatched(result);
+      } catch (err) {
+        if (qm.run === run && !run.cancelled && qm.phase === 'searching') {
+          qmStopTimers(); qm.phase = 'idle'; qm.message = friendlyFnError(err); renderQuickMatchPanel();
+        }
+      } finally { run.pending = null; }
+    };
+    qm.retryTimer = setInterval(join, 2000);
     qm.clockTimer = setInterval(() => {
-      if (qm.phase !== 'searching') return;
       const el = $id('qmElapsed');
       if (el) el.textContent = qmFormatElapsed(Date.now() - qm.startedAt);
-      if (Date.now() - qm.startedAt > QM_MAX_SEARCH_MS) {
-        qmCancelSearch().then(() => { qm.message = 'No opponent found in 5 minutes. Try another time control or search again.'; renderQuickMatchPanel(); });
-      }
-    }, 1000);
-
-    await qmJoinOnce(true);
-    if (qm.phase === 'searching') qm.retryTimer = setInterval(() => qmJoinOnce(false), QM_RETRY_MS);
+      if (Date.now() - qm.startedAt >= QM_MAX_SEARCH_MS) qmResolveSearch(run, false);
+    }, 100);
+    join();
   }
 
-  async function qmJoinOnce(first) {
-    if (qm.phase !== 'searching' || qm.busy) return;
-    qm.busy = true;
+  async function qmResolveSearch(run, cancel) {
+    if (qm.run !== run || (!cancel && qm.phase !== 'searching')) return;
+    if (cancel) run.cancelled = true;
+    qmStopTimers();
+    qm.phase = 'resolving';
+    if (cancel) qm.message = 'Cancelling search…';
+    // Keep Cancel available while a cutoff RPC is in flight.
     try {
-      if (auth.currentUser) qm.token = await auth.currentUser.getIdToken();
-      const res = await call('quickMatchJoin', { timeControl: qm.timeKey });
-      if (qm.phase !== 'searching') return;
-      if (res && res.status === 'matched') qmHandleMatched(res);
-    } catch (err) {
-      if (qm.phase !== 'searching') return;
-      if (first) {
-        qmStopTimers();
-        qm.phase = 'idle';
-        qm.message = friendlyFnError(err, 'Could not start matchmaking.');
-        renderQuickMatchPanel();
+      if (run.pending) { try { await run.pending; } catch (_) {} }
+      const res = await window.sbCall('quick_match_resolve', { p_search: run.id, p_cancel: cancel });
+      if (qm.run !== run || (run.cancelled && !cancel)) return;
+      if (res.status === 'matched') {
+        qm.phase = 'searching'; qmHandleMatched(res); return;
       }
-    } finally {
-      qm.busy = false;
+      qm.run = null; qm.phase = 'idle';
+      if (cancel) { qm.message = 'Matchmaking cancelled.'; renderQuickMatchPanel(); return; }
+      if (res.status !== 'bot') throw new Error('Search could not be resolved. Please try again.');
+      const [minutes, increment] = run.key.split('+').map(Number);
+      const rating = Object.keys(BOT_PROFILES).map(Number).reduce((a,b) =>
+        Math.abs(b - Number(currentUserRating || 800)) < Math.abs(a - Number(currentUserRating || 800)) ? b : a);
+      const name = QUICK_BOT_NAMES[Math.floor(Math.random() * QUICK_BOT_NAMES.length)] + ' (Bot)';
+      launchQuickBotGame(minutes * 60, name, rating, increment, run.key);
+    } catch (err) {
+      if (qm.run !== run && qm.run !== null) return;
+      qm.run = null; qm.phase = 'idle'; qm.message = friendlyFnError(err); renderQuickMatchPanel();
     }
   }
 
-  async function qmCancelSearch() {
-    if (qm.phase !== 'searching') return;
-    qmStopTimers();
-    qm.phase = 'idle';
-    qm.message = 'Matchmaking cancelled.';
-    renderQuickMatchPanel();
-    try {
-      const res = await call('quickMatchCancel', {});
-      if (res && res.cancelled === false && res.status === 'matched') {
-        qm.message = '';
-        qm.phase = 'searching'; // let the match go ahead: an opponent was already assigned
-        qmHandleMatched(res);
-      }
-    } catch (_) { /* entry will expire on the server after ~25s without heartbeat */ }
+  function qmCancelSearch() {
+    if (!qm.run || !['searching', 'resolving'].includes(qm.phase)) return;
+    return qmResolveSearch(qm.run, true);
   }
 
   async function qmHandleMatched(m, resumed) {
@@ -446,8 +439,8 @@
 
   // Leaving the page while searching: best-effort server cancel (the entry also expires by itself).
   window.addEventListener('pagehide', () => {
-    if (qm.phase !== 'searching') return;
-    window.sbCallKeepalive('quick_match_cancel', {});
+    if (!qm.run || !['searching', 'resolving'].includes(qm.phase)) return;
+    window.sbCallKeepalive('quick_match_resolve', { p_search: qm.run.id, p_cancel: true });
   });
 
   // =====================================================================
@@ -558,7 +551,7 @@
     }
   }
 
-  auth.onAuthStateChanged(() => { lmFetch(); lmLoadMyRatings(); renderLearningMaterialsPanel(); if (currentMode === 'quick') { qm.resume = null; renderQuickMatchPanel(); qmCheckResume(); } });
+  auth.onAuthStateChanged(user => { if (qm.run && (!user || user.uid !== qm.run.uid)) { qm.run.cancelled = true; qmStopTimers(); qm.run = null; qm.phase = 'idle'; } lmFetch(); lmLoadMyRatings(); renderLearningMaterialsPanel(); if (currentMode === 'quick') { qm.resume = null; renderQuickMatchPanel(); qmCheckResume(); } });
 
   // =====================================================================
   // 3. HIDDEN ADMIN PANEL — the admin is a Google account listed in the
@@ -678,11 +671,12 @@
     ad.materials = [];
     const list = $id('adminMaterialsList'); if (list) list.innerHTML = '';
     clearTimeout(ad.idleTimer);
+    if (window.clearPuzzleAdmin) window.clearPuzzleAdmin();
   }
 
   function adminBumpIdle() {
     clearTimeout(ad.idleTimer);
-    if (!ad.verified) return;
+    if (!ad.verified || $id('adminDashboard').style.display === 'none') return;
     ad.idleTimer = setTimeout(() => adminLogout('Logged out after 30 minutes of inactivity.'), ADMIN_IDLE_MS);
   }
 
@@ -853,6 +847,7 @@
 
     bind('adminGoogleBtn', 'click', adminGoogleAction);
     bind('adminLoginCloseX', 'click', closeAdminLogin);
+    bind('adminDashClose', 'click', closeAdminDashboard);
     bind('adminLogoutBtn', 'click', () => adminLogout());
     bind('adminMaterialForm', 'submit', adminSave);
     bind('adminCancelEditBtn', 'click', adminResetForm);
@@ -873,6 +868,7 @@
   else wire();
 
   // Hooks used by script.js
+  window.qmCancelActiveSearch = qmCancelSearch;
   window.openQuickMatchPage = openQuickMatchPage;
   window.qmBothPlayersPresent = qmBothPlayersPresent;
   window.qmOnRoomCleanup = qmOnRoomCleanup;

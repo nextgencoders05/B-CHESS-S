@@ -526,7 +526,7 @@ function updateTimeControlUI() {
   const w = document.getElementById('whiteClock');
   const b = document.getElementById('blackClock');
   const names = { 600: 'Rapid • 10 min', 300: 'Blitz • 5 min', 60: 'Bullet • 1 min', 0: 'No Timer' };
-  const quickLabel = currentRoomCode && friendRoomData && friendRoomData.quickLabel;
+  const quickLabel = (quickBot && quickBot.timeKey) || (currentRoomCode && friendRoomData && friendRoomData.quickLabel);
   if (label) label.textContent = '⏱ ' + (quickLabel || names[friendTimeControl] || 'No Timer');
   const show = friendTimeControl > 0;
   if (w) w.style.display = show ? 'block' : 'none';
@@ -1837,9 +1837,9 @@ let redoStack = [];
 let stockfish = null;
 let engineReady = false;
 let currentBestMoveUci = null;
-let showBestMoveArrow = true;
+let showBestMoveArrow = localStorage.getItem('bChessArrows') !== 'off';
 let targetDepth = 15;
-let soundEnabled = true;
+let soundEnabled = localStorage.getItem('bChessSound') !== 'off';
 
 // Click-to-Move / Tap state
 let selectedSquare = null;
@@ -2879,6 +2879,8 @@ function setGameMode(mode) {
     cleanupFriendGame(false);
   }
 
+  if (mode !== 'quick' && window.qmCancelActiveSearch) window.qmCancelActiveSearch();
+  if (window.closePuzzleMode) window.closePuzzleMode();
   currentMode = mode;
   selectedSquare = null;
   clearClickHighlights();
@@ -3042,12 +3044,12 @@ function copyFullAnalysisReport() {
 }
 
 // Preload + decode all piece images so the first drag has no image-load/decode delay.
-const PIECE_IMG_URL = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
+const PIECE_IMG_URL = piece => 'pieces/' + piece.toLowerCase() + '.png';
 const preloadedPieceImages = [];
 function preloadPieceImages() {
   ['wP','wN','wB','wR','wQ','wK','bP','bN','bB','bR','bQ','bK'].forEach(p => {
     const img = new Image();
-    img.src = PIECE_IMG_URL.replace('{piece}', p);
+    img.src = PIECE_IMG_URL(p);
     if (img.decode) img.decode().catch(() => {});
     preloadedPieceImages.push(img);
   });
@@ -3211,6 +3213,7 @@ $(document).ready(function() {
   // Sound Toggle Button
   document.getElementById('soundToggleBtn').addEventListener('click', (e) => {
     soundEnabled = !soundEnabled;
+    localStorage.setItem('bChessSound', soundEnabled ? 'on' : 'off');
     e.target.textContent = soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
     e.target.classList.toggle('active-pill', soundEnabled);
     if (soundEnabled) playSound('move');
@@ -3304,18 +3307,12 @@ $(document).ready(function() {
   // Toggle Best Move Arrow
   document.getElementById('arrowToggleBtn').addEventListener('click', (e) => {
     showBestMoveArrow = !showBestMoveArrow;
+    localStorage.setItem('bChessArrows', showBestMoveArrow ? 'on' : 'off');
     e.target.textContent = showBestMoveArrow ? '🏹 Arrow: ON' : '🏹 Arrow: OFF';
     e.target.classList.toggle('active-pill', showBestMoveArrow);
     if (currentBestMoveUci && currentMode === 'analysis') {
       drawBestMoveArrow(currentBestMoveUci);
     }
-  });
-
-  // Theme Toggle
-  document.getElementById('themeBtn').addEventListener('click', (e) => {
-    document.body.classList.toggle('wood-theme');
-    const isWood = document.body.classList.contains('wood-theme');
-    e.target.textContent = isWood ? 'Wood & Cream' : 'Green & White';
   });
 
   // Load FEN
@@ -4071,7 +4068,7 @@ function startQuickBotGame(tc) {
   }, 1200);
 }
 
-function launchQuickBotGame(tc, name, rating) {
+function launchQuickBotGame(tc, name, rating, increment = 0, timeKey = null) {
   const myColor = Math.random() < 0.5 ? 'w' : 'b';
   setWaitingForOpponent(false);
   lockModeButtons(false);
@@ -4081,7 +4078,7 @@ function launchQuickBotGame(tc, name, rating) {
   playerColor = myColor;
   myOnlineColor = myColor;
   quickBot = {
-    code: generateRoomCode(), tc, name, rating, myColor,
+    code: generateRoomCode(), tc, name, rating, myColor, increment, timeKey,
     botColor: myColor === 'w' ? 'b' : 'w',
     botId: 'qm_' + name.toLowerCase(),
     clock: { w: tc, b: tc, turn: 'w', startedAt: Date.now() },
@@ -4110,7 +4107,7 @@ function launchQuickBotGame(tc, name, rating) {
   updateEvalBar(0, '0.0');
   document.getElementById('evalScore').textContent = '+0.00';
   document.getElementById('bestMoveText').textContent = 'Match started';
-  document.getElementById('engineSubtext').textContent = `${currentUserName} vs ${name} • ${friendTimeLabel(tc)}`;
+  document.getElementById('engineSubtext').textContent = `${currentUserName} vs ${name} • ${timeKey || friendTimeLabel(tc)}`;
   document.getElementById('pvLineText').textContent = 'Good luck!';
   updateGameReview();
   updateUI();
@@ -4130,11 +4127,12 @@ function applyQuickBotChrome() {
   ['undoBtn', 'redoBtn', 'resetBtn', 'playBestBtn'].forEach(id => { if (el(id)) el(id).style.display = 'none'; });
   if (el('chatTabBtn')) el('chatTabBtn').style.display = 'inline-block';
   if (el('chatOpponentName')) el('chatOpponentName').textContent = quickBot.name + ' (' + quickBot.rating + ')';
-  el('panelPrimaryLabel').textContent = 'Friend Match';
+  el('panelPrimaryLabel').textContent = 'Quick Match';
   el('bestMoveArrow').setAttribute('visibility', 'hidden');
   if (el('modeBotBtn')) el('modeBotBtn').classList.remove('active');
   if (el('modeAnalyzeBtn')) el('modeAnalyzeBtn').classList.remove('active');
-  if (el('modeFriendBtn')) el('modeFriendBtn').classList.add('active');
+  if (el('modeFriendBtn')) el('modeFriendBtn').classList.remove('active');
+  if (el('modeQuickBtn')) el('modeQuickBtn').classList.add('active');
   updateTimeControlUI();
   updateBoardMicButtons();
 }
@@ -4175,7 +4173,9 @@ function renderQuickBotClock() {
 function quickBotAfterMove() {
   if (!quickBot || quickBot.over) return;
   const mover = quickBot.clock.turn;
-  quickBot.clock[mover] = quickBotTimeLeft(mover);
+  const remaining = quickBotTimeLeft(mover);
+  if (remaining <= 0) { finishQuickBotGame('timeout', mover === 'w' ? 'b' : 'w'); return; }
+  quickBot.clock[mover] = remaining + quickBot.increment;
   quickBot.clock.turn = game.turn();
   quickBot.clock.startedAt = Date.now();
   renderQuickBotClock();
@@ -4207,7 +4207,7 @@ function finishQuickBotGame(result, winnerColor) {
     creatorId: white.id, creatorName: white.name, creatorRating: white.rating,
     guestId: black.id, guestName: black.name, guestRating: black.rating,
     result, winner: winnerId, timeControl: qb.tc, moveHistory: game.history(),
-    gameOver: true, quickMatch: true
+    gameOver: true, quickMatch: true, quickKey: qb.timeKey, quickLabel: qb.timeKey || friendTimeLabel(qb.tc)
   };
   saveFriendMatchHistory(roomValue, qb.code);
   lockModeButtons(false);

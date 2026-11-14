@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "node interactions.cjs && node database.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "@sinonjs/fake-timers": "15.4.0",
+    "jquery": "3.7.1",
+    "jsdom": "31.0.1"
+  }
+}

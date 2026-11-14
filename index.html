@@ -52,9 +52,10 @@
         <div id="playerSearchResults" class="player-search-results" style="display:none;"></div>
       </div>
       <div class="theme-controls">
-        <button id="soundToggleBtn" class="pill-btn active-pill">🔊 Sound: ON</button>
-        <button id="arrowToggleBtn" class="pill-btn active-pill">🏹 Arrow: ON</button>
-        <button id="themeBtn" class="pill-btn">Green & White</button>
+        <div class="app-menu-wrap">
+          <button id="appMenuBtn" class="pill-btn" aria-label="Open menu" aria-expanded="false" aria-controls="appMenu">☰</button>
+          <div id="appMenu" hidden><button id="settingsMenuBtn" class="pill-btn">Settings</button><button id="themeBtn" class="pill-btn">Theme</button></div>
+        </div>
         <button id="googleLoginBtn" class="pill-btn google-login-pill">
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="google-icon" /> Sign in with Google
         </button>
@@ -77,6 +78,11 @@
     </header>
 
     <!-- Main Content -->
+    <section id="puzzlesPanel" hidden>
+      <h2>🧩 Puzzles</h2><p id="puzzleStatus" role="status" aria-live="polite"></p>
+      <div id="puzzleStages" aria-label="Puzzle stages"></div>
+      <div id="puzzleBoard"></div><button id="puzzleRetry" class="pill-btn">Retry stage</button>
+    </section>
     <main class="main-grid">
       <!-- Left: Eval Bar + Chessboard Section -->
       <section class="board-card">
@@ -89,6 +95,7 @@
               <button id="modeBotBtn" class="mode-btn">Play vs Bot</button>
               <button id="modeFriendBtn" class="mode-btn">Play with Friend</button>
               <button id="modeAnalyzeBtn" class="mode-btn active">Free Analysis</button>
+              <button id="modePuzzlesBtn" class="mode-btn">🧩 Puzzles</button>
               <button id="modeBooksBtn" class="mode-btn">📚 Books</button>
             </div>
           </div>
@@ -634,9 +641,22 @@
   <div id="adminDashboard" class="admin-dashboard-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="adminDashTitle">
     <div class="admin-dashboard">
       <header class="admin-dash-head">
+        <button id="adminDashClose" class="pill-btn" aria-label="Close Admin Dashboard">×</button>
         <div><span class="admin-dash-kicker">♟ B Chess Analyzer</span><h2 id="adminDashTitle">Admin Dashboard</h2></div>
         <div class="admin-dash-user"><span id="adminDashPhone"></span><button type="button" id="adminLogoutBtn" class="pill-btn signout-pill">Logout</button></div>
       </header>
+      <section class="admin-section">
+        <h3>🧩 Puzzles</h3>
+        <label for="puzzleFormat">Import format</label>
+        <select id="puzzleFormat" class="styled-select"><option value="pgn">PGN</option><option value="fen">FEN + solutions</option></select>
+        <p>PGN: one game per stage (main line is the solution). Separate games with a blank line before headers, or use a line containing ---.</p>
+        <p>FEN: one position plus the solution below, or bulk lines: FEN | solution moves. JSON arrays of {"fen":"…","solution":"…"} are also accepted. Moves can be SAN or UCI.</p>
+        <label for="puzzleSource">Puzzle content</label><textarea id="puzzleSource" class="profile-input" rows="7"></textarea>
+        <label for="puzzleSolution">Solution moves (single FEN only)</label><input id="puzzleSolution" class="profile-input" placeholder="e.g. e2e4 e7e5 g1f3" />
+        <label for="puzzleFiles">Upload PGN, FEN, TXT or JSON files</label><input id="puzzleFiles" type="file" accept=".pgn,.fen,.txt,.json" multiple />
+        <div><button id="puzzlePreviewBtn" class="pill-btn">Validate & preview</button> <button id="puzzlePublishBtn" class="pill-btn highlight-btn" disabled>Publish valid stages</button></div>
+        <div id="puzzleImportStatus" role="status" aria-live="polite"></div><ol id="puzzleImportPreview"></ol>
+      </section>
       <section class="admin-section">
         <h3>📚 Learning Materials Management</h3>
         <div id="adminStats" class="admin-stats"></div>
@@ -660,6 +680,15 @@
       </section>
     </div>
   </div>
+  <div id="preferencesModal" class="admin-dashboard-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="preferencesTitle">
+    <section class="preferences-card"><button id="preferencesClose" class="pill-btn" aria-label="Close preferences">×</button><h2 id="preferencesTitle">Settings</h2>
+      <div id="settingsPanel"><button id="soundToggleBtn" class="pill-btn"></button><button id="arrowToggleBtn" class="pill-btn"></button></div>
+      <div id="themePanel" hidden><h3>Board</h3><div id="boardChoices"></div><h3>Coins</h3><div id="coinChoices"></div></div>
+    </section>
+  </div>
+  <link rel="stylesheet" href="updates.css" />
   <script src="features.js"></script>
+  <script src="puzzles.js"></script>
+  <script src="preferences.js"></script>
 </body>
 </html>

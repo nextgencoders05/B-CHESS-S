@@ -1,0 +1,35 @@
+[hidden]{display:none!important}
+.admin-dash-head{position:relative;padding-right:64px}
+#adminDashClose{position:absolute;right:12px;top:12px;width:44px;height:44px;font-size:28px;padding:0}
+.app-menu-wrap{position:relative;order:99;margin-left:auto}
+#appMenuBtn{min-width:44px;min-height:44px;font-size:22px!important}
+#appMenu{position:absolute;right:0;top:48px;z-index:1200;padding:10px;background:#262421;border:1px solid #555;border-radius:12px;min-width:160px;box-shadow:0 8px 30px #0008}
+#appMenu button{display:block;width:100%;margin:4px 0;text-align:left}
+.preferences-card{position:relative;background:#262421;border:1px solid #555;border-radius:16px;padding:24px;width:min(480px,94vw);max-height:85vh;overflow:auto;color:#eee}
+#preferencesClose{float:right;min-width:44px;min-height:44px;font-size:24px}
+#settingsPanel{display:flex;gap:12px;flex-direction:column;clear:both}
+#settingsPanel button{min-height:48px;text-align:left}
+#boardChoices,#coinChoices{display:flex;flex-wrap:wrap;gap:12px}
+.theme-choice{display:flex;flex-direction:column;gap:8px;padding:12px!important}
+.theme-choice[aria-pressed=true]{outline:2px solid #81b64c}
+.board-preview{display:grid;grid-template-columns:repeat(4,24px)}
+.board-preview i{width:24px;height:24px}
+#coinChoices img{width:32px;height:32px;object-fit:contain}
+#puzzlesPanel{padding:20px;border-radius:14px;background:#262421;color:#eee;margin:16px 0}
+#puzzleStages{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto;margin-bottom:16px}
+#puzzleStages button{min-height:44px}
+#puzzleBoard{width:min(100%,480px);margin:16px auto}
+#puzzleRetry{display:block;margin:12px auto}
+#puzzleStatus{min-height:24px}
+#puzzleSource{display:block;width:100%;resize:vertical}
+#puzzleImportPreview{max-height:240px;overflow:auto;padding-left:28px}
+#puzzleImportPreview li{padding:5px;overflow-wrap:anywhere}
+body.puzzle-mode .main-grid,body.puzzle-mode #booksSection{display:none!important}
+@media(max-width:700px){
+ .top-bar{position:relative;padding-right:56px!important}
+ .app-menu-wrap{position:absolute;right:8px;top:10px;margin:0}
+ .theme-controls{overflow:visible!important}
+ #uxNav .ux-nav-item{min-width:0;padding-left:3px;padding-right:3px;font-size:10px}
+ #puzzlesPanel{padding:12px}
+ .admin-dash-head{padding-right:60px}
+}

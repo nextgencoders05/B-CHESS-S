@@ -7,6 +7,7 @@
     { id: 'modeBotBtn',     ico: '🤖', label: 'Play' },
     { id: 'modeFriendBtn',  ico: '👥', label: 'Friends' },
     { id: 'modeAnalyzeBtn', ico: '🔍', label: 'Analyze' },
+    { id: 'modePuzzlesBtn', ico: '🧩', label: 'Puzzles' },
     { id: 'modeBooksBtn',   ico: '📚', label: 'Books' }
   ];
   function init() {

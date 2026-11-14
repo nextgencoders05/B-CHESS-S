@@ -44,8 +44,16 @@ create index if not exists rtdb_username_idx on public.rtdb ((data->>'username')
 
 alter table public.rtdb enable row level security;
 drop policy if exists rtdb_read on public.rtdb;
--- Compatibility: signed-in users can read all documents (privacy review required).
-create policy rtdb_read on public.rtdb for select to authenticated using (true);
+-- Least-privilege document access. Legacy global user search will require a safe directory RPC.
+create policy rtdb_read on public.rtdb for select to authenticated using (
+  doc = 'users/' || (select auth.uid())::text
+  or (starts_with(doc, 'rooms/') and (
+    data->>'creatorId' = (select auth.uid())::text
+    or data->>'guestId' = (select auth.uid())::text
+    or (data->>'guestId' is null and data->>'status' = 'waiting')
+  ))
+  or public.is_admin()
+);
 -- No insert/update/delete policies: every write goes through the functions below.
 
 create or replace function public.rtdb_now_ms() returns bigint
@@ -131,9 +139,9 @@ end $$;
 -- Security boundary for client-submitted RTDB writes.
 -- Only the signed-in owner may modify users/{uid}. Other users' inboxes,
 -- friend lists and ratings must be updated through dedicated verified RPCs.
--- Rooms can be created by their creator, then changed only by participants.
--- This protects cross-account documents but is NOT full server-side chess
--- move validation. Do not launch rated public matches until that is added.
+-- Rooms can be created by their creator; client game-state mutations are disabled.
+-- Rated/public gameplay requires server-validated moves and result settlement.
+-- The legacy client gameplay writes are intentionally blocked until then.
 create or replace function public.rtdb_authorize_write(p_doc text, p_path text[], p_value jsonb)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -156,7 +164,7 @@ begin
     -- No client-controlled rating: only a verified game-result service may change it.
     if coalesce(cardinality(p_path),0) = 0 then
       if p_value is not null and p_value <> 'null'::jsonb
-         and jsonb_typeof(p_value) = 'object' and p_value ? 'rating' then
+         and jsonb_typeof(p_value) = 'object' and p_value ?| array['rating','elo','isAdmin','admin','role','uid','id','matchHistory','friends','friendRequests','challenges'] then
         raise exception 'permission-denied: Profile rating is server-managed';
       end if;
       -- Whole-document writes may erase protected fields; disallow after creation.
@@ -165,7 +173,7 @@ begin
       end if;
     else
       v_field := p_path[1];
-      if v_field in ('rating','elo','isAdmin','admin','role','uid','id') then
+      if v_field in ('rating','elo','isAdmin','admin','role','uid','id','matchHistory') then
         raise exception 'permission-denied: Protected profile field';
       end if;
     end if;
@@ -192,7 +200,9 @@ begin
     end if;
     -- No participant may replace the entire room or change its ownership.
     if coalesce(cardinality(p_path),0) = 0
-       or p_path[1] in ('creatorId','guestId','matchId','quickMatch') then
+       or p_path[1] in ('creatorId','guestId','matchId','quickMatch',
+         'gameFen','gameOver','result','winner','status','clockTurn','clockStartedAt',
+         'whiteTime','blackTime','moveHistory','moves','fen','pgn','ratingDelta') then
       raise exception 'permission-denied: Protected room field';
     end if;
     return;
@@ -305,9 +315,9 @@ declare s record; o record;
 begin
   for s in select session from rtdb_sessions where last_seen < now() - interval '45 seconds'
            for update skip locked loop
-    for o in select ops from rtdb_ondisconnect where session = s.session order by id loop
-      perform public.rtdb_apply_internal(o.ops);
-    end loop;
+    -- Do not execute untrusted deferred writes with elevated privileges.
+    -- Stale session records are removed; presence cleanup requires a trusted worker.
+    -- See SECURITY_AUDIT.md for deployment requirements.
     delete from rtdb_ondisconnect where session = s.session;
     delete from rtdb_sessions where session = s.session;
   end loop;
@@ -334,7 +344,10 @@ language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := public.rtdb_require_user(); i int;
 begin
   insert into rtdb_sessions(session, uid) values (p_session, v_uid) on conflict (session) do update set last_seen = now() where rtdb_sessions.uid = excluded.uid;
-  if (select count(*) from rtdb_ondisconnect where session = p_session) > 200 then
+  if not exists (select 1 from rtdb_sessions where session=p_session and uid=v_uid) then
+    raise exception 'permission-denied: Session is owned by another user';
+  end if;
+  if (select count(*) from rtdb_ondisconnect where session = p_session) >= 200 then
     raise exception 'resource-exhausted: Too many onDisconnect operations.';
   end if;
   if p_ops is null or jsonb_typeof(p_ops) <> 'array' or jsonb_array_length(p_ops) > 10 then
@@ -342,6 +355,9 @@ begin
   end if;
   for i in 0 .. jsonb_array_length(p_ops)-1 loop
     if p_ops->i ? 'prefix' then raise exception 'permission-denied: Prefix delete forbidden'; end if;
+    if p_ops->i ? 'p' and jsonb_typeof(p_ops->i->'p') <> 'array' then
+      raise exception 'invalid-argument: Invalid path';
+    end if;
     perform public.rtdb_authorize_write(p_ops->i->>'d',
       coalesce(array(select jsonb_array_elements_text(coalesce(p_ops->i->'p','[]'::jsonb))), '{}'::text[]),
       p_ops->i->'v');
@@ -362,9 +378,8 @@ create or replace function public.rtdb_session_end(p_session uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := public.rtdb_require_user(); o record;
 begin
-  for o in select ops from rtdb_ondisconnect where session = p_session and uid = v_uid order by id loop
-    perform public.rtdb_apply_internal(o.ops);
-  end loop;
+  -- Do not replay deferred client writes with elevated privileges.
+  -- The application must use a verified presence service for cleanup.
   delete from rtdb_ondisconnect where session = p_session and uid = v_uid;
   delete from rtdb_sessions where session = p_session and uid = v_uid;
 end $$;
@@ -652,6 +667,15 @@ end $$;
 -- ---------------------------------------------------------------------
 -- Permissions + Realtime
 -- ---------------------------------------------------------------------
+-- Explicitly revoke PUBLIC execute on privileged helper functions.
+revoke execute on function public.is_admin(), public.admin_require(),
+  public.rtdb_authorize_write(text,text[],jsonb), public.rtdb_apply_internal(jsonb),
+  public.rtdb_reap(), public.qm_room_active(text,uuid,timestamptz)
+from public, anon, authenticated;
+-- Internal tables are accessible only to the owning database role.
+revoke all on public.admins, public.rtdb_sessions, public.rtdb_ondisconnect
+from public, anon, authenticated;
+
 -- Revoke only application RPCs; do not change unrelated project functions.
 revoke execute on function public.rtdb_apply(jsonb), public.rtdb_cas(text,text[],bigint,jsonb),
   public.rtdb_session_beat(uuid), public.rtdb_ondisconnect_add(uuid,text,jsonb),

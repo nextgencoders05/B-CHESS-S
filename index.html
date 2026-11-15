@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#262421" />
+  <meta name="theme-color" content="#0a2328" />
   <meta name="description" content="B Chess Analyzer - analyze games, play chess and explore openings." />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -37,7 +37,7 @@
     <!-- Top Header -->
     <header class="top-bar">
       <div class="brand">
-        <span class="pawn-icon">♟</span>
+        <span class="pawn-icon" aria-hidden="true">♞</span>
         <div>
           <h1>B Chess</h1>
         </div>
@@ -61,7 +61,7 @@
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="google-icon" /> Sign in with Google
         </button>
         <div class="challenge-notification-wrap" id="challengeNotificationWrap" style="display:none;">
-          <button id="challengeNotificationBtn" class="pill-btn notification-btn" title="Challenges">♟<span id="challengeBadge" class="challenge-badge" style="display:none;">0</span></button>
+          <button id="challengeNotificationBtn" class="pill-btn notification-btn" title="Challenges" aria-label="Challenge notifications">🔔︎<span id="challengeBadge" class="challenge-badge" style="display:none;">0</span></button>
           <div id="challengeNotificationBox" class="challenge-notification-box" style="display:none;">
             <div class="challenge-notification-title">Challenge Notifications</div>
             <div id="challengeNotificationList" class="challenge-notification-list"></div>
@@ -726,6 +726,7 @@
   </div>
   <link rel="stylesheet" href="updates.css" />
   <link rel="stylesheet" href="next-update.css" />
+  <link rel="stylesheet" href="club.css" />
   <script src="features.js"></script>
   <script src="next-core.js"></script>
   <script src="move-badges.js"></script>

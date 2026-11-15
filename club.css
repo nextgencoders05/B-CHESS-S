@@ -1,0 +1,184 @@
+/* B Chess club palette. Board and piece selections use the existing theme rules. */
+:root {
+  --bg: #071a1e;
+  --panel: #0d272c;
+  --panel-2: #0a2025;
+  --panel-3: #153238;
+  --line: #3c5555;
+  --text: #fff1d8;
+  --text-2: #ecdcc2;
+  --muted: #bac7be;
+  --copper: #a46740;
+  --gold: #e4bc8b;
+  --green: #c28d62;
+  --green-hi: #f1c9a1;
+  --green-shadow: #613823;
+  --radius: 8px;
+  --side-w: 164px;
+  --selected: linear-gradient(180deg, #955933, #6e3c23);
+}
+
+body {
+  color-scheme: dark;
+  background: radial-gradient(ellipse at 45% 0%, #153639, var(--bg) 56%) fixed !important;
+  color: var(--text-2);
+}
+
+.brand h1, .player-name, .qm-head h3, .admin-dash-head h2,
+.skill-modal-window h2, .preferences-card h2, #puzzlesPanel h2, #tournamentPanel h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--text) !important;
+}
+
+.top-bar {
+  background: linear-gradient(115deg, #102d31, #0a2227) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 8px 24px #020b0d65;
+}
+.brand { white-space: nowrap; }
+.brand h1 { font-size: 26px !important; letter-spacing: .02em; }
+.brand .pawn-icon { background: transparent; color: var(--gold) !important; }
+.theme-controls { gap: 7px; }
+.player-search-box { background: var(--panel-2) !important; border-color: var(--line) !important; }
+.player-search-box .player-search-input { border: 0 !important; background: transparent !important; }
+body.ux-nav-ready .mode-bar:not(:has(> .bot-controls:not([style*="display: none"]):not([style*="display:none"]))) {
+  display: none;
+}
+#challengeNotificationBtn { min-width: 44px; min-height: 44px; }
+#userProfile { background: var(--panel-2) !important; border-color: var(--line) !important; }
+.rating-badge-pill { background: #261c16 !important; color: var(--text) !important; }
+
+.pill-btn, .control-btn, .mode-btn, .tab, .friends-tab, .time-control-card {
+  border: 1px solid var(--line) !important;
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2)) !important;
+  color: var(--text-2) !important;
+  border-radius: var(--radius) !important;
+}
+.pill-btn:hover, .control-btn:hover, .mode-btn:hover, .tab:hover, .friends-tab:hover {
+  background: #204049 !important;
+  color: var(--text) !important;
+  border-color: #a9825e !important;
+}
+.highlight-btn, .control-btn.highlight-btn, .bot-action-btn, .copy-analysis-btn, .mode-btn.active,
+.tab.active, .friends-tab.active, .pill-btn.active-pill, .qm-time-card.active,
+.theme-choice[aria-pressed="true"], #puzzleStages [aria-pressed="true"],
+#uxNav .ux-nav-item.active {
+  background: var(--selected) !important;
+  border: 1px solid #c58e63 !important;
+  color: #fff4de !important;
+  box-shadow: inset 0 1px 0 #ffce9c36, 0 2px 5px #030c0e55 !important;
+}
+.highlight-btn:hover, .control-btn.highlight-btn:hover, .bot-action-btn:hover, .copy-analysis-btn:hover {
+  background: linear-gradient(#ab6840, #7c452a) !important;
+}
+.resign-danger-btn, .leave-game-btn { color: #ffb4a6 !important; }
+.google-login-pill { background: #f8ecd9 !important; color: #38271d !important; }
+
+.board-card, .analysis-card, .skill-modal-window, .admin-dashboard, .preferences-card,
+#puzzlesPanel, #tournamentPanel, .pwa-install-banner {
+  background: var(--panel) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--text-2) !important;
+  box-shadow: 0 10px 26px #020b0d59 !important;
+}
+.panel-box, .admin-section, .admin-puzzle-card, .tour-card, .turn-banner,
+#appMenu, #mobileMorePanel, .challenge-notification-box, #playerSearchResults,
+.opening-review-bar, .result-player, .terms-scroll-box, .book-card, .skill-card, .promotion-choice, .friend-match-result-panel, .chat-box {
+  background: var(--panel-2) !important;
+  border-color: var(--line) !important;
+  color: var(--text-2) !important;
+}
+.skill-modal-overlay, .admin-dashboard-overlay { background: #020f13bd !important; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+  max-width: 100%;
+  background-color: var(--panel-2) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+:where(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold) !important;
+  outline-offset: 2px;
+}
+
+.main-grid > *, .board-relative-box, .player-tag { min-width: 0; }
+.board-wrapper, #puzzleBoard, #tournamentBoard, #reviewBoard {
+  border-radius: 5px !important;
+  box-shadow: 0 0 0 1px #a88260, 0 4px 14px #03141775 !important;
+}
+.captured-bar {
+  background: #0b2226 !important;
+  border-radius: 6px;
+  padding-inline: 6px !important;
+}
+.player-dot { border-radius: 50% !important; }
+.chess-clock {
+  background: #091e22 !important;
+  border: 1px solid #877256 !important;
+  color: var(--text) !important;
+}
+.chess-clock.active-clock { background: #f2dfbd !important; color: #17272a !important; }
+.chess-clock.low-clock { background: #a32e28 !important; color: #fff !important; }
+.eval-bar-container { background: #19383c !important; border-color: #6d6650 !important; }
+.eval-bar-black { background: #163439 !important; }
+.eval-bar-white { background: #f0ddba !important; }
+.eval-bar-score { text-shadow: 0 1px 3px #000; }
+.tabs { margin: 0 0 10px; border-bottom: 1px solid var(--line) !important; gap: 4px !important; }
+.tab { min-height: 40px; }
+.move-row { border-color: var(--line) !important; color: var(--text-2); }
+.move-row:nth-child(even) { background-color: #122e33; }
+#tourLeaderboard tbody tr:first-child { background: #573b29; }
+#uxNav { background: #0a2328; }
+#uxNav .ux-nav-item { border: 1px solid transparent; color: var(--text-2); }
+#uxNav .ux-nav-item.active::before { background: var(--gold); }
+#uxNav .ux-ico, .notification-btn { color: var(--gold) !important; }
+
+@media (min-width: 901px) {
+  .app-container { max-width: 1440px; }
+  .main-grid { grid-template-columns: minmax(0, 1.23fr) minmax(0, 1fr); gap: 12px; }
+  .board-relative-box { width: min(calc(100% - 32px), 570px); max-width: none; }
+  .board-card { position: static; }
+  #uxNav { padding: 15px 9px; border-color: var(--line); }
+  #uxNav .ux-nav-item { flex-direction: row; justify-content: flex-start; gap: 10px; padding: 11px 9px; text-align: left; font-size: 13px; }
+  #uxNav .ux-nav-item.active::before { display: none; }
+  #uxNav .ux-ico { flex: 0 0 22px; font-size: 19px; text-align: center; }
+  .ux-nav-logo { color: var(--gold); border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  :root { --side-w: 132px; }
+  #uxNav .ux-nav-item { gap: 6px; font-size: 12px; }
+}
+@media (max-width: 900px) {
+  .main-grid { grid-template-columns: minmax(0, 1fr); }
+  .board-relative-box { max-width: 620px; }
+}
+@media (max-width: 700px) {
+  .top-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 4px 49px 6px 7px !important;
+  }
+  .brand { grid-area: 1 / 1; gap: 3px; }
+  .brand .pawn-icon { font-size: 20px !important; padding: 0; }
+  .brand h1 { font-size: clamp(16px, 5vw, 22px) !important; }
+  .theme-controls { grid-area: 1 / 2; width: auto; max-width: 100% !important; gap: 4px !important; justify-content: flex-end; }
+  .app-menu-wrap { top: 4px; right: 3px; }
+  #headerAnalysisBtn, #googleLoginBtn { min-height: 44px; min-width: 44px; padding: 4px !important; }
+  .theme-controls > #googleLoginBtn { font-size: 0 !important; min-width: 44px; max-width: 44px; }
+  #userProfile { padding-inline: 4px; gap: 3px; }
+  #userProfile img, #userAvatarFallback { width: 23px; height: 23px; }
+  .player-search-wrap { grid-area: 2 / 1 / 3 / -1; }
+  .top-bar .challenge-notification-box { right: 0; width: min(275px, 85vw); }
+  .tab { min-height: 44px; }
+  #uxNav { border-color: var(--line); }
+  #uxNav .ux-nav-item { border-radius: 5px; margin: 3px 2px; }
+  .skill-modal-window, .preferences-card { max-height: 90dvh; overflow-y: auto; }
+}
+@media (max-width: 350px) {
+  .top-bar { grid-template-columns: 1fr; }
+  .theme-controls { grid-area: 2 / 1; justify-content: flex-start; }
+  .player-search-wrap { grid-area: 3 / 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-btn, .control-btn, .mode-btn, .tab, .friends-tab, .ux-nav-item { transition: none; }
+  .tab-content.active-content, .skill-modal-window { animation: none; }
+}

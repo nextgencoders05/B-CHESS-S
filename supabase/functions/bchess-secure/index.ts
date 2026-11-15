@@ -20,6 +20,41 @@ Deno.serve(async(req)=>{
    const {data,error:commitError}=await service.rpc('tournament_commit_move',{p_uid:user.id,p_game:g.id,p_version:g.version,p_move:verified.move,p_fen:verified.fen,p_terminal:verified.terminal});
    if(commitError)throw commitError;return reply(data);
   }
+  if (input.action === 'room_move') {
+   if (typeof input.room !== 'string' || !/^[A-Za-z0-9_-]{1,60}$/.test(input.room)) throw new Error('Invalid room');
+   const {data: row, error} = await userClient.from('rtdb').select('data').eq('doc', 'rooms/' + input.room).single();
+   const room = row?.data;
+   if (error || !room || room.gameOver || !room.guestId ||
+       (user.id !== room.creatorId && user.id !== room.guestId)) throw new Error('Match unavailable');
+   const before = room.gameFen || 'start';
+   const moves = Array.isArray(room.moveHistory) ? room.moveHistory : [];
+   if (input.before !== before || input.ply !== moves.length) throw new Error('Position changed. Try again.');
+   const chess = new Chess();
+   for (const san of moves) chess.move(san);
+   if (before !== 'start' && chess.fen({forceEnpassantSquare: true}).split(' ').slice(0,3).join(' ') !== before.split(' ').slice(0,3).join(' ')) {
+    throw new Error('The saved position does not match the move history.');
+   }
+   if (chess.turn() !== (user.id === room.creatorId ? 'w' : 'b')) throw new Error('Wait for your turn');
+   const move = chess.move(input.move);
+   const terminal = chess.isCheckmate() ? 'checkmate' : chess.isDraw() ? 'draw' : null;
+   const {data, error: commitError} = await service.rpc('bchess_room_apply', {
+    p_uid: user.id, p_code: input.room, p_action: 'move',
+    p_payload: { before, ply: moves.length, san: move.san, fen: chess.fen({forceEnpassantSquare: true}),
+     lastMove: {from: move.from, to: move.to}, terminal }
+   });
+   if (commitError) throw commitError;
+   return reply(data);
+  }
+  if (input.action === 'voice_ice') {
+   const {data: row, error} = await userClient.from('rtdb').select('data')
+    .eq('doc', 'rooms/' + String(input.room || '')).single();
+   const room = row?.data;
+   if (error || !room || room.gameOver || (user.id !== room.creatorId && user.id !== room.guestId)) {
+    throw new Error('Match unavailable');
+   }
+   const servers = Deno.env.get('BCHESS_TURN_ICE_SERVERS');
+   return reply({iceServers: servers ? JSON.parse(servers) : []});
+  }
   if(input.action==='publish_theme'){
    const {data:admin,error}=await userClient.rpc('admin_verify_session');if(error||!admin?.admin)return reply({error:'Admin required'},403);
    if(!/^[0-9a-f-]{36}$/.test(input.upload)||!['board','coins'].includes(input.kind)||typeof input.name!=='string'||input.name.trim().length<2||input.name.trim().length>60)throw new Error('Invalid theme details');

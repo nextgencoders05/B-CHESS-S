@@ -276,32 +276,42 @@ body.club-board-theme .square-selected { box-shadow: inset 0 0 0 4px #d8a264 !im
 @media (max-width: 350px) {
   #connectionStatus[aria-expanded="true"] .connection-label,
   #connectionStatus[data-signal="offline"] .connection-label { left: 0; right: auto; }
-/* Quick Match waiting video and live panels. */
+}
+/* Quick Match search uses the same compact layout at either viewport size. */
 .qm-video-search {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .qm-video-search video {
+  grid-column: 1 / -1;
   display: block;
-  flex: 0 1 100%;
-  width: min(100%, 300px);
-  max-width: 300px;
-  min-width: 0;
+  width: min(100%, 18rem, 38vh);
+  width: min(100%, 18rem, 38svh);
   aspect-ratio: 1;
+  object-fit: contain;
   margin-inline: auto;
   border-radius: 8px;
 }
+.qm-video-search .pill-btn { width: auto; }
+.quick-match-lobby:has(.qm-is-searching) .main-grid { grid-template-columns: minmax(0, 1fr); }
+.quick-match-lobby:has(.qm-is-searching) :is(.board-and-eval, .captured-bar, .board-controls,
+  #quickHistoryBox, .analysis-card, .qm-groups, .qm-head) { display: none !important; }
 .quick-match-playing :is([data-tab="analysisTab"], [data-tab="reviewTab"], [data-tab="evalTab"],
-  #analysisTab, #reviewTab, #evalTab, #evalBarContainer, #quickHistoryBox) {
+  [data-tab="chatTab"], #analysisTab, #reviewTab, #evalTab, #evalBarContainer, #quickHistoryBox) {
   display: none !important;
 }
+/* Keep text chat reachable through its own control rather than a match panel tab. */
+#matchChatToggle { display: none; }
+.quick-match-playing #matchChatToggle { display: inline-flex; }
 #reviewCopyMovesStatus:empty { display: none; }
 #reviewCopyMovesText { width: 100%; }
 
 @media (max-width: 900px) {
-  #uxNav > [data-mode="modeHistoryBtn"],
-  .quick-match-lobby :is(.board-and-eval, .captured-bar, .board-controls, #quickHistoryBox, .analysis-card),
-  .quick-match-playing :is([data-tab="movesTab"], #movesTab),
-  .quick-match-lobby #quickMatchControls.qm-is-searching .qm-groups {
+  #uxNav > :is([data-mode="modeHistoryBtn"], [data-mode="quickMatchModes"]),
+  .quick-match-lobby :is(.board-and-eval, .captured-bar, .board-controls, #quickHistoryBox, .analysis-card) {
     display: none !important;
   }
 }

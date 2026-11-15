@@ -13,6 +13,8 @@ let currentUserName = "Player";
 let currentUserPhoto = "";
 let currentUserRating = 800;
 let currentRoomCode = null;
+let pendingOnlineMove = null;
+let pendingClockStart = false;
 let myOnlineColor = 'w';
 let isOnlineMatchActive = false;
 let selectedFriendTimeControl = 600;
@@ -25,6 +27,7 @@ let friendClockStartedAt = null;
 let friendClockTurn = null;
 let friendClockExpiredHandled = false;
 let friendRoomListenerRef = null;
+let friendRoomRefresh = null;
 let friendChatListenerRef = null;
 let friendHistorySavedCodes = new Set();
 let pendingPromotionMove = null;
@@ -56,7 +59,7 @@ const rtcConfig = {
     // TURN relay fallback so voice works across different networks / mobile data
     { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
     { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+    { urls: "turns:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
   ]
 };
 
@@ -458,13 +461,9 @@ function joinFriendRoom(codeOverride, onFail) {
   const code = (typeof codeOverride === 'string' ? codeOverride : document.getElementById("roomCodeInput").value).trim().toUpperCase();
   if (!code) return alert("Enter Room Code");
 
-  const roomRef = database.ref("rooms/" + code);
-  roomRef.once("value", (snap) => {
-    const val = snap.val();
-    if (!val) return fail("Invalid room code!");
-    if (val.gameOver) return fail("This game has already ended.");
-    if (val.guestId && val.guestId !== currentUserId) return fail("This room already has a player.");
-
+  if (currentRoomCode) return;
+  roomAction(code, 'join').then(val => {
+    if (currentRoomCode) return;
     currentRoomCode = code;
     myOnlineColor = 'b';
     friendTimeControl = Number(val.timeControl) || 0;
@@ -472,32 +471,12 @@ function joinFriendRoom(codeOverride, onFail) {
     board.orientation('black');
     lockModeButtons(true);
     resetFriendClockUI();
-
-    roomRef.transaction((cur) => {
-      if (cur === null) return cur;
-      if (cur.gameOver || (cur.guestId && cur.guestId !== currentUserId)) return;
-      return Object.assign({}, cur, {
-        guestId: currentUserId,
-        guestName: currentUserName,
-        guestRating: currentUserRating,
-        status: 'playing',
-        gameOver: false
-      });
-    }).then((res) => {
-      if (!res.committed || !res.snapshot.val()) {
-        cleanupFriendGame(false);
-        board.orientation('white');
-        fail('This challenge is no longer available. It may have been cancelled.');
-        return;
-      }
-      friendRoomData = Object.assign({}, val, { guestId: currentUserId, guestName: currentUserName, guestRating: currentUserRating, guestPhoto: currentUserPhoto || '', status: 'playing' });
-      document.getElementById("activeRoomInfo").style.display = "flex";
-      document.getElementById("activeRoomCode").textContent = code;
-      updateTimeControlUI();
-      listenToRoom(code, false);
-      startVoiceChat(code, false);
-    });
-  });
+    document.getElementById("activeRoomInfo").style.display = "flex";
+    document.getElementById("activeRoomCode").textContent = code;
+    updateTimeControlUI();
+    listenToRoom(code, false);
+    startVoiceChat(code, false);
+  }).catch(err => fail(err.message));
 }
 
 function showFriendTimeModal(onSelect, options = {}) {
@@ -562,7 +541,7 @@ function stopFriendClock() {
 
 function renderFriendClock() {
   if (!friendTimeControl || !friendClockTurn || !friendClockStartedAt) return;
-  const elapsed = Math.max(0, (Date.now() - friendClockStartedAt) / 1000);
+  const elapsed = Math.max(0, (Date.now() + serverTimeOffset - friendClockStartedAt) / 1000);
   const w = friendClockTurn === 'w' ? Math.max(0, whiteTimeLeft - elapsed) : whiteTimeLeft;
   const b = friendClockTurn === 'b' ? Math.max(0, blackTimeLeft - elapsed) : blackTimeLeft;
   const wEl = document.getElementById('whiteClock');
@@ -590,44 +569,26 @@ function snapshotFriendClock() {
   if (!friendTimeControl || !friendClockTurn || !friendClockStartedAt) {
     return { whiteTimeLeft, blackTimeLeft };
   }
-  const elapsed = Math.max(0, (Date.now() - friendClockStartedAt) / 1000);
+  const elapsed = Math.max(0, (Date.now() + serverTimeOffset - friendClockStartedAt) / 1000);
   return {
     whiteTimeLeft: friendClockTurn === 'w' ? Math.max(0, whiteTimeLeft - elapsed) : whiteTimeLeft,
     blackTimeLeft: friendClockTurn === 'b' ? Math.max(0, blackTimeLeft - elapsed) : blackTimeLeft
   };
 }
 
-function handleFriendTimeout(color) {
-  if (friendClockExpiredHandled || !currentRoomCode) return;
-  friendClockExpiredHandled = true;
-  stopFriendClock();
-  const winnerColor = color === 'w' ? 'b' : 'w';
-  database.ref('rooms/' + currentRoomCode).once('value').then(snap => {
-    const val = snap.val();
-    if (!val || val.gameOver) return;
-    const winnerId = winnerColor === 'w' ? val.creatorId : val.guestId;
-    database.ref('rooms/' + currentRoomCode).update({
-      gameOver: true,
-      result: 'timeout',
-      winner: winnerId,
-      timeoutColor: color
-    });
-  });
+function roomAction(code, action) {
+  return window.sbCall('bchess_room_action', { p_code: code, p_action: action });
 }
 
-function commitClockAfterMove(nextTurn) {
-  if (!friendTimeControl || !currentRoomCode) return null;
-  const left = snapshotFriendClock();
-  const increment = Number(friendRoomData && friendRoomData.increment) || 0;
-  if (increment > 0 && left.whiteTimeLeft > 0 && left.blackTimeLeft > 0) {
-    if (nextTurn === 'b') left.whiteTimeLeft += increment; else left.blackTimeLeft += increment;
-  }
-  return {
-    whiteTimeLeft: left.whiteTimeLeft,
-    blackTimeLeft: left.blackTimeLeft,
-    clockTurn: nextTurn,
-    clockStartedAt: firebase.database.ServerValue.TIMESTAMP
-  };
+function handleFriendTimeout() {
+  if (friendClockExpiredHandled || !currentRoomCode) return;
+  const code = currentRoomCode;
+  friendClockExpiredHandled = true;
+  roomAction(code, 'timeout').then(room => {
+    if (currentRoomCode === code && !room?.gameOver) friendClockExpiredHandled = false;
+  }).catch(() => {
+    if (currentRoomCode === code) setTimeout(() => { friendClockExpiredHandled = false; }, 1000);
+  });
 }
 
 function leaveFriendGame() {
@@ -644,16 +605,9 @@ function leaveFriendGame() {
   }
   if (!confirm('Leave this game? Your current game will be abandoned.')) return;
   const code = currentRoomCode;
-  const roomRef = database.ref('rooms/' + code);
-  roomRef.once('value').then(snap => {
-    const val = snap.val() || {};
-    const opponentId = val.creatorId === currentUserId ? val.guestId : val.creatorId;
-    const next = {...val, gameOver:true, result:'left', leftBy:currentUserId, winner:opponentId || null};
-    saveFriendMatchHistory(next, code);
-    return roomRef.update({ gameOver: true, result: 'left', leftBy: currentUserId, winner: opponentId || null });
-  }).finally(() => {
-    cleanupFriendGame(false);
-  });
+  roomAction(code, 'leave').then(() => {
+    if (currentRoomCode === code) cleanupFriendGame(false);
+  }).catch(err => alert(err.message));
 }
 
 function setWaitingForOpponent(waiting) {
@@ -672,30 +626,25 @@ function cancelWaitingChallenge() {
   const targetId = waitingChallengeTargetId;
   selfCancellingChallenge = true;
   // Only delete the room if no opponent has joined in the meantime.
-  database.ref('rooms/' + code).transaction((cur) => {
-    if (cur && cur.guestId) return; // already accepted - abort
-    return null;
-  }).then((res) => {
-    if (res.committed) {
-      if (targetId) database.ref('users/' + targetId + '/challenges/' + code).remove().catch(() => {});
-      cleanupFriendGame(false);
-    } else {
-      alert('Your opponent has just accepted - the match is starting.');
-    }
-  }).catch(() => {
+  roomAction(code, 'cancel').then(() => {
     if (targetId) database.ref('users/' + targetId + '/challenges/' + code).remove().catch(() => {});
     cleanupFriendGame(false);
-  }).finally(() => { selfCancellingChallenge = false; });
+  }).catch(err => alert(err.message)).finally(() => { selfCancellingChallenge = false; });
 }
 
 function cleanupFriendGame(resetMode = true) {
   setQuickMatchView('');
+  pendingOnlineMove = null;
+  pendingClockStart = false;
+  stopVoiceSignaling();
   const wasQuickRoom = typeof qmOnRoomCleanup === 'function' ? qmOnRoomCleanup() : false;
   stopQuickMatchSearch();
   endQuickBotGame();
   setWaitingForOpponent(false);
   stopFriendClock();
   if (friendRoomListenerRef) { friendRoomListenerRef.off(); friendRoomListenerRef = null; }
+  clearInterval(friendRoomRefresh);
+  friendRoomRefresh = null;
   if (friendChatListenerRef) { friendChatListenerRef.off(); friendChatListenerRef = null; }
   try { if (peerConnection) peerConnection.close(); } catch (_) {}
   peerConnection = null;
@@ -728,8 +677,18 @@ function copyRoomCode() {
 
 function listenToRoom(code, isCreator) {
   const roomRef = database.ref("rooms/" + code);
+  if (friendRoomListenerRef) friendRoomListenerRef.off();
+  clearInterval(friendRoomRefresh);
   friendRoomListenerRef = roomRef;
+  // Realtime normally delivers moves first. Poll just this active room for
+  // the waiting player as a fallback if a WebSocket update is lost.
+  friendRoomRefresh = setInterval(() => {
+    if (currentRoomCode === code && !friendRoomData?.gameOver &&
+        (!friendRoomData?.guestId || !friendRoomData?.clockStartedAt && friendTimeControl > 0 ||
+         game.turn() !== myOnlineColor || pendingOnlineMove)) roomRef.once('value').catch(() => {});
+  }, 2500);
   roomRef.on("value", (snap) => {
+    if (currentRoomCode !== code) return;
     const val = snap.val();
     if (!val) {
       if (isWaitingForOpponent && !selfCancellingChallenge && currentRoomCode === code) {
@@ -740,48 +699,28 @@ function listenToRoom(code, isCreator) {
     }
     friendRoomData = val;
     updateFriendPlayerLabels(val);
+    if (val.guestId && !val.gameOver) setQuickMatchView('playing');
     if (isWaitingForOpponent && (val.guestId || val.guestName || val.status === 'playing')) {
       setWaitingForOpponent(false);
     }
 
     if (val.guestName) {
       const quickReady = !val.quickMatch || (typeof qmBothPlayersPresent === 'function' && qmBothPlayersPresent(val));
-      if (friendTimeControl > 0 && val.guestId && val.guestName && !val.clockStartedAt && !val.gameOver && quickReady) {
-        roomRef.transaction((current) => {
-          if (!current || current.gameOver || !current.guestId || current.clockStartedAt) return;
-          return Object.assign({}, current, {
-            clockTurn: 'w',
-            clockStartedAt: firebase.database.ServerValue.TIMESTAMP,
-            whiteTimeLeft: Number(current.timeControl) || friendTimeControl,
-            blackTimeLeft: Number(current.timeControl) || friendTimeControl
-          });
-        });
+      if (friendTimeControl > 0 && val.guestId && !val.clockStartedAt && !val.gameOver && quickReady && !pendingClockStart) {
+        pendingClockStart = true;
+        roomAction(code, 'start').catch(err => console.warn('Could not start match clock:', err))
+          .finally(() => { pendingClockStart = false; });
       }
       const oppLabel = isCreator ? val.guestName : val.creatorName;
       const chatOpp = document.getElementById("chatOpponentName");
       if (chatOpp) chatOpp.textContent = oppLabel + " (" + (isCreator ? val.guestRating : val.creatorRating) + ")";
     }
 
-    if (Array.isArray(val.moveHistory) && val.moveHistory.length !== game.history().length) {
-      try {
-        game.reset();
-        val.moveHistory.forEach(san => game.move(san));
-        board.position(game.fen());
-        updateUI();
-      } catch (e) { console.warn('Move history sync failed:', e); }
-    } else if (val.gameFen && val.gameFen !== game.fen()) {
-      if (val.gameFen === 'start') game.reset();
-      else game.load(val.gameFen);
-      board.position(game.fen());
-      playSound('move');
-      updateUI();
-      setTimeout(showKingStateEffects, 40);
-    }
+    syncOnlinePosition(val);
 
     if (val.drawOffer && val.drawOffer !== currentUserId) {
       if (confirm("Opponent offered a draw. Accept?")) {
-        roomRef.update({ gameOver: true, result: 'draw', drawOffer: null });
-        lockModeButtons(false);
+        roomAction(code, 'draw').catch(err => alert(err.message));
       } else {
         roomRef.child("drawOffer").remove();
       }
@@ -801,7 +740,8 @@ function listenToRoom(code, isCreator) {
     }
 
     if (val.gameOver) {
-      saveFriendMatchHistory(val, code);
+      clearInterval(friendRoomRefresh);
+      friendRoomRefresh = null;
       stopFriendClock();
       lockModeButtons(false);
       showFriendMatchResult(val, code);
@@ -896,7 +836,7 @@ function showFriendMatchResult(roomValue, code) {
   const friendsBtn = document.getElementById('resultFriendsBtn');
   const closeResultBtn = document.getElementById('resultCloseBtn');
   if (closeResultBtn) closeResultBtn.onclick = closeResultAndExitRoom;
-  if (reviewBtn) reviewBtn.onclick = () => { if (roomValue.quickMatch) setQuickMatchView(''); panel.style.display='none'; document.querySelector('[data-tab="reviewTab"]')?.click(); };
+  if (reviewBtn) reviewBtn.onclick = () => { setQuickMatchView(''); panel.style.display='none'; document.querySelector('[data-tab="reviewTab"]')?.click(); };
   if (rematchBtn) rematchBtn.onclick = () => {
     panel.style.display='none';
     const quickKey = roomValue.quickMatch ? (roomValue.quickKey || null) : null;
@@ -1114,10 +1054,7 @@ function declineChallengeNotification(code) {
   if (challengeToastCode === code) hideChallengeToast();
   database.ref('users/' + currentUserId + '/challenges/' + code).remove();
   // Remove the pending room so the challenger is not left waiting forever.
-  database.ref('rooms/' + code).transaction((cur) => {
-    if (cur && !cur.guestId && cur.status === 'waiting' && !cur.gameOver) return null;
-    return cur;
-  }).catch(() => {});
+  roomAction(code, 'cancel').catch(() => {});
 }
 
 function friendTimeLabel(seconds) {
@@ -1324,30 +1261,48 @@ async function loadMatchHistory() {
   }
 }
 
-function checkOnlineTrigger(move) {
-  if (currentMode === 'friend' && currentRoomCode) {
-    const clockUpdate = commitClockAfterMove(game.turn());
-    database.ref("rooms/" + currentRoomCode).update({
-      gameFen: game.fen(),
-      lastMove: { from: move.from, to: move.to },
-      moveHistory: game.history(),
-      ...(clockUpdate || {})
-    });
-
-    if (game.in_checkmate()) {
-      const roomRef = database.ref("rooms/" + currentRoomCode);
-      roomRef.once("value", (snap) => {
-        const val = snap.val();
-        const opponentId = (val.creatorId === currentUserId) ? val.guestId : val.creatorId;
-        roomRef.update({ gameOver: true, result: 'checkmate', winner: currentUserId });
-        lockModeButtons(false);
-        if (opponentId) {
-          database.ref("users/" + currentUserId + "/rating").transaction(r => (r || 800) + 8);
-          database.ref("users/" + opponentId + "/rating").transaction(r => Math.max(100, (r || 800) - 8));
-        }
-      });
+function syncOnlinePosition(room) {
+  const moves = Array.isArray(room.moveHistory) ? room.moveHistory : [];
+  const current = game.history();
+  if (current.length === moves.length && current.every((san, i) => san === moves[i])) return;
+  const replay = new Chess();
+  for (const san of moves) {
+    if (!replay.move(san)) {
+      console.warn('Could not replay saved match position.');
+      return;
     }
   }
+  game.reset();
+  for (const san of moves) game.move(san);
+  selectedSquare = null;
+  clearClickHighlights();
+  board.position(game.fen());
+  if (moves.length) playSound('move');
+  updateUI();
+  setTimeout(showKingStateEffects, 40);
+}
+
+function submitOnlineMove(source, target, promotion) {
+  if (pendingOnlineMove || !friendRoomData?.guestId || friendRoomData.gameOver ||
+      game.turn() !== myOnlineColor || (friendTimeControl > 0 && !friendRoomData.clockStartedAt)) return;
+  const probe = new Chess(game.fen());
+  if (!probe.move({from: source, to: target, promotion})) return;
+
+  const code = currentRoomCode;
+  const request = {action: 'room_move', room: code, before: friendRoomData.gameFen || 'start',
+    ply: game.history().length, move: {from: source, to: target, promotion}};
+  pendingOnlineMove = request;
+  window.bchessSecure(request).then(room => {
+    // The RPC response may arrive before Realtime. Read through the versioned
+    // room cache so a later opponent move cannot be replaced by this response.
+    if (currentRoomCode === code && room) return database.ref('rooms/' + code).once('value');
+  }).catch(async err => {
+    if (currentRoomCode !== code) return;
+    await database.ref('rooms/' + code).once('value').catch(() => {});
+    if (currentRoomCode === code) alert(err.message);
+  }).finally(() => {
+    if (pendingOnlineMove === request) pendingOnlineMove = null;
+  });
 }
 
 function resignGame() {
@@ -1359,22 +1314,7 @@ function resignGame() {
   }
   if (!currentRoomCode) return alert("Not in an active match!");
   if (!confirm("Are you sure you want to resign? (-8 Rating)")) return;
-
-  const roomRef = database.ref("rooms/" + currentRoomCode);
-  roomRef.once("value", (snap) => {
-    const val = snap.val();
-    const opponentId = (val.creatorId === currentUserId) ? val.guestId : val.creatorId;
-
-    roomRef.update({
-      gameOver: true,
-      result: 'resigned',
-      winner: opponentId,
-      loser: currentUserId
-    });
-    lockModeButtons(false);
-    if (opponentId) database.ref("users/" + opponentId + "/rating").transaction(r => (r || 800) + 8);
-    database.ref("users/" + currentUserId + "/rating").transaction(r => Math.max(100, (r || 800) - 8));
-  });
+  roomAction(currentRoomCode, 'resign').catch(err => alert(err.message));
 }
 
 function offerDrawGame() {
@@ -1443,40 +1383,8 @@ function escapeHtml(str) {
 }
 
 // --- WEBRTC LIVE VOICE CHAT ---
-// Voice uses one initial WebRTC negotiation plus explicit renegotiation when
-// a microphone track is added after the room connection has already started.
-// This is important for two-way audio: the room creator is the WebRTC offerer,
-// so a microphone added later by the guest must trigger a fresh offer from the
-// creator instead of only calling replaceTrack() on the guest.
-let pendingRemoteCandidates = [];
-let remoteDescriptionReady = false;
 let isSpeakerMuted = false;
-let remoteVoiceStream = null;
-let voiceRoomRef = null;
-let voiceIsCaller = false;
-let renegotiationBusy = false;
-let renegotiationQueue = false;
-
-async function addRemoteIceCandidate(candidate, pc = peerConnection) {
-  if (!pc || !candidate) return;
-  try {
-    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-  } catch (err) {
-    console.warn("ICE candidate error:", err);
-  }
-}
-
-async function flushRemoteIceCandidates() {
-  const queued = pendingRemoteCandidates.splice(0);
-  for (const candidate of queued) await addRemoteIceCandidate(candidate);
-}
-
-async function setRemoteDescriptionSafe(description) {
-  if (!peerConnection || !description) return;
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(description));
-  remoteDescriptionReady = true;
-  await flushRemoteIceCandidates();
-}
+let voiceSession = null;
 
 function setSpeakerState(muted) {
   isSpeakerMuted = muted;
@@ -1493,262 +1401,162 @@ function setSpeakerState(muted) {
   }
 }
 
-async function addRenegotiationCandidates(negRef, pc) {
-  negRef.child(voiceIsCaller ? "calleeCandidates" : "callerCandidates")
-    .on("child_added", snap => {
-      const c = snap.val();
-      if (c) addRemoteIceCandidate(c, pc);
-    });
+function stopVoiceSignaling() {
+  const session = voiceSession;
+  voiceSession = null;
+  if (session?.listener) session.ref.off('value', session.listener);
+  const audio = document.getElementById('remoteAudio');
+  if (audio) audio.srcObject = null;
 }
 
-async function createCallerRenegotiation() {
-  if (!peerConnection || !voiceRoomRef || !voiceIsCaller) return;
-  if (peerConnection.signalingState !== "stable") {
-    renegotiationQueue = true;
-    return;
-  }
-  if (renegotiationBusy) {
-    renegotiationQueue = true;
-    return;
-  }
-
-  renegotiationBusy = true;
-  const negRef = voiceRoomRef.child("renegotiations").push();
-  const negId = negRef.key;
-
-  try {
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    // ICE candidates can be generated immediately after setLocalDescription.
-    // Store them under this exact negotiation so they cannot be mixed with
-    // candidates from the original offer.
-    peerConnection.__activeNegotiationRef = negRef;
-
-    await negRef.child("offer").set({
-      sdp: offer.sdp,
-      type: offer.type
-    });
-
-    negRef.child("answer").on("value", async snap => {
-      const answer = snap.val();
-      if (!answer || peerConnection.signalingState !== "have-local-offer") return;
-      try {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        remoteDescriptionReady = true;
-        await flushRemoteIceCandidates();
-        console.log("Voice renegotiation completed:", negId);
-      } catch (err) {
-        console.warn("Voice renegotiation answer error:", err);
-      } finally {
-        renegotiationBusy = false;
-        if (renegotiationQueue) {
-          renegotiationQueue = false;
-          setTimeout(() => createCallerRenegotiation(), 0);
-        }
-      }
-    });
-
-    await addRenegotiationCandidates(negRef, peerConnection);
-  } catch (err) {
-    renegotiationBusy = false;
-    console.warn("Voice renegotiation error:", err);
-  }
-}
-
-function requestVoiceRenegotiation() {
-  if (!voiceRoomRef || voiceIsCaller) {
-    if (voiceIsCaller) createCallerRenegotiation();
-    return;
-  }
-  const requestRef = voiceRoomRef.child("renegotiationRequests").push();
-  requestRef.set({
-    requestedAt: firebase.database.ServerValue.TIMESTAMP
-  });
-}
-
-// Acquire the microphone for BOTH players as soon as the room connects, so the
-// mic track is already inside the first offer/answer (no late renegotiation).
-// The track starts disabled (muted); the Mic button only enables/disables it.
-let micReadyPromise = Promise.resolve();
 async function acquireLocalMic() {
   if (localVoiceStream) return localVoiceStream;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+  if (!navigator.mediaDevices?.getUserMedia) return null;
+  const session = voiceSession;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
       video: false
     });
-    stream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
+    if (voiceSession !== session || localVoiceStream) {
+      stream.getTracks().forEach(track => track.stop());
+      return voiceSession === session ? localVoiceStream : null;
+    }
+    stream.getAudioTracks().forEach(track => { track.enabled = !isMicMuted; });
     localVoiceStream = stream;
     return stream;
   } catch (err) {
-    console.warn("Microphone not available at room start:", err);
+    console.warn('Microphone unavailable:', err);
     return null;
   }
 }
 
 async function attachLocalMicToPeer() {
-  if (!peerConnection || !localVoiceStream) return;
-  const track = localVoiceStream.getAudioTracks()[0];
-  if (!track) return;
-  let t = audioTransceiver;
-  if (!t) t = peerConnection.getTransceivers().find(x => x.receiver && x.receiver.track && x.receiver.track.kind === "audio");
-  if (t) {
-    audioTransceiver = t;
-    t.direction = "sendrecv";
-    await t.sender.replaceTrack(track);
-  } else {
-    audioTransceiver = peerConnection.addTransceiver(track, { direction: "sendrecv" });
-  }
+  const track = localVoiceStream?.getAudioTracks()[0];
+  if (track && audioTransceiver) await audioTransceiver.sender.replaceTrack(track);
 }
 
 async function startVoiceChat(roomId, isCaller) {
-  try {
-    pendingRemoteCandidates = [];
-    remoteDescriptionReady = false;
-    remoteVoiceStream = null;
-    voiceIsCaller = !!isCaller;
-    voiceRoomRef = database.ref("rooms/" + roomId + "/voice");
-    peerConnection = new RTCPeerConnection(rtcConfig);
-    renegotiationBusy = false;
-    renegotiationQueue = false;
+  stopVoiceSignaling();
+  peerConnection?.close();
+  peerConnection = null;
+  audioTransceiver = null;
+  const session = {
+    ref: database.ref('rooms/' + roomId + '/voice/v2'),
+    request: isCaller ? null : crypto.randomUUID(),
+    exchange: null,
+    pending: Promise.resolve(),
+    retryCount: 0
+  };
+  voiceSession = session;
+  const active = () => voiceSession === session && currentRoomCode === roomId;
+  const report = err => { if (active()) console.warn('Voice signaling failed:', err); };
 
-    // Keep a stable audio m-line from the beginning. The actual microphone
-    // track can be attached later, followed by explicit renegotiation.
+  const configured = await window.bchessSecure({action: 'voice_ice', room: roomId}).catch(() => null);
+  if (!active()) return;
+  const config = configured?.iceServers?.length ? {iceServers: configured.iceServers} : rtcConfig;
+  const remoteRole = isCaller ? 'guest' : 'host';
+  const localRole = isCaller ? 'host' : 'guest';
+
+  function createExchange(id, request) {
+    peerConnection?.close();
+    const pc = new RTCPeerConnection(config);
+    peerConnection = pc;
     audioTransceiver = null;
-    if (isCaller) {
-      audioTransceiver = peerConnection.addTransceiver("audio", { direction: "sendrecv" });
-    }
-    micReadyPromise = acquireLocalMic();
-
-    peerConnection.onconnectionstatechange = () => {
-      console.log("Voice connection state:", peerConnection.connectionState);
-      if (peerConnection.connectionState === "connected") {
-        const audio = document.getElementById("remoteAudio");
-        if (audio && !isSpeakerMuted) audio.play().catch(() => {});
+    const exchange = {id, request, pc, seen: new Set(), ref: session.ref.child('exchanges/' + id)};
+    session.exchange = exchange;
+    const stillCurrent = () => active() && session.exchange === exchange;
+    pc.onicecandidate = event => {
+      // The exchange is assigned before setLocalDescription starts gathering ICE.
+      if (event.candidate && stillCurrent()) {
+        exchange.ref.child(localRole).push(event.candidate.toJSON()).catch(report);
       }
     };
-
-    peerConnection.ontrack = (event) => {
-      const audio = document.getElementById("remoteAudio");
+    pc.ontrack = event => {
+      if (!stillCurrent()) return;
+      const audio = document.getElementById('remoteAudio');
       if (!audio) return;
-
-      if (event.streams && event.streams[0]) {
-        remoteVoiceStream = event.streams[0];
-      } else {
-        if (!remoteVoiceStream) remoteVoiceStream = new MediaStream();
-        const alreadyAdded = remoteVoiceStream.getTracks().some(t => t.id === event.track.id);
-        if (!alreadyAdded) remoteVoiceStream.addTrack(event.track);
-      }
-
-      event.track.enabled = true;
+      audio.srcObject = event.streams[0] || new MediaStream([event.track]);
       audio.autoplay = true;
       audio.playsInline = true;
-      audio.srcObject = remoteVoiceStream;
       audio.muted = isSpeakerMuted;
       audio.volume = isSpeakerMuted ? 0 : 1;
-      audio.play().then(() => {
-        console.log("Remote voice playback started", {
-          trackId: event.track.id,
-          readyState: event.track.readyState
-        });
-      }).catch(e => {
-        console.log("Remote voice playback needs speaker interaction:", e);
-      });
+      if (!isSpeakerMuted) audio.play().catch(() => {});
     };
-
-    peerConnection.onicecandidate = (e) => {
-      if (!e.candidate) return;
-      const activeRef = peerConnection.__activeNegotiationRef;
-      if (activeRef) {
-        const path = voiceIsCaller ? "callerCandidates" : "calleeCandidates";
-        activeRef.child(path).push(e.candidate.toJSON());
+    pc.onconnectionstatechange = () => {
+      if (!stillCurrent() || pc.connectionState !== 'failed' || session.retryCount >= 1) return;
+      session.retryCount++;
+      if (isCaller) {
+        session.pending = session.pending.then(() => {
+          if (stillCurrent()) return publishOffer(request);
+        }).catch(report);
       } else {
-        const path = voiceIsCaller ? "callerCandidates" : "calleeCandidates";
-        voiceRoomRef.child(path).push(e.candidate.toJSON());
+        session.request = crypto.randomUUID();
+        session.ref.child('request').set(session.request).catch(report);
       }
     };
-
-    if (isCaller) {
-      // Initial negotiation (mic track included in the offer).
-      await micReadyPromise;
-      await attachLocalMicToPeer();
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      await voiceRoomRef.child("offer").set({ sdp: offer.sdp, type: offer.type });
-
-      voiceRoomRef.child("answer").on("value", async snap => {
-        const ans = snap.val();
-        if (ans && !peerConnection.currentRemoteDescription) {
-          await setRemoteDescriptionSafe(ans);
-        }
-      });
-
-      voiceRoomRef.child("calleeCandidates").on("child_added", snap => {
-        const c = snap.val();
-        if (c) {
-          if (!remoteDescriptionReady) pendingRemoteCandidates.push(c);
-          else addRemoteIceCandidate(c);
-        }
-      });
-
-      // The guest cannot create an offer itself in this simple two-peer setup.
-      // If the guest turns its mic on later, it asks the caller to renegotiate.
-      voiceRoomRef.child("renegotiationRequests").on("child_added", snap => {
-        if (snap.val()) createCallerRenegotiation();
-      });
-
-      // The caller is also allowed to renegotiate when its own microphone is
-      // enabled, so both directions use the same SDP path.
-    } else {
-      voiceRoomRef.child("offer").on("value", async snap => {
-        const off = snap.val();
-        if (off && !peerConnection.currentRemoteDescription) {
-          await setRemoteDescriptionSafe(off);
-          await micReadyPromise;
-          await attachLocalMicToPeer();
-          const ans = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(ans);
-          await voiceRoomRef.child("answer").set({ sdp: ans.sdp, type: ans.type });
-        }
-      });
-
-      voiceRoomRef.child("callerCandidates").on("child_added", snap => {
-        const c = snap.val();
-        if (c) {
-          if (!remoteDescriptionReady) pendingRemoteCandidates.push(c);
-          else addRemoteIceCandidate(c);
-        }
-      });
-
-      // Handle every new caller-created renegotiation offer.
-      voiceRoomRef.child("renegotiations").on("child_added", async snap => {
-        const negRef = snap.ref;
-        const neg = snap.val();
-        if (!neg || !neg.offer) return;
-
-        try {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(neg.offer));
-          await attachLocalMicToPeer();
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          await negRef.child("answer").set({ sdp: answer.sdp, type: answer.type });
-
-          negRef.child("callerCandidates").on("child_added", candidateSnap => {
-            const c = candidateSnap.val();
-            if (c) addRemoteIceCandidate(c);
-          });
-
-          console.log("Voice renegotiation answer sent:", snap.key);
-        } catch (err) {
-          console.warn("Voice renegotiation offer error:", err);
-        }
-      });
-    }
-  } catch (err) {
-    console.warn("WebRTC voice init error:", err);
+    return exchange;
   }
+
+  async function publishOffer(request) {
+    const id = crypto.randomUUID();
+    const {pc, ref} = createExchange(id, request);
+    audioTransceiver = pc.addTransceiver('audio', {direction: 'sendrecv'});
+    await attachLocalMicToPeer();
+    await pc.setLocalDescription(await pc.createOffer());
+    if (!active()) return;
+    await ref.child('offer').set(pc.localDescription.toJSON());
+    if (active()) {
+      await session.ref.child('selection').set({id, request});
+      const exchanges = (await session.ref.child('exchanges').once('value')).val() || {};
+      for (const key of Object.keys(exchanges)) {
+        if (key !== id && active()) await session.ref.child('exchanges/' + key).remove();
+      }
+    }
+  }
+
+  async function receive(value) {
+    if (!active()) return;
+    if (isCaller && value.request && session.exchange?.request !== value.request) {
+      await publishOffer(value.request);
+      return;
+    }
+    const selection = value.selection;
+    if (!selection || (!isCaller && selection.request !== session.request)) return;
+    const data = value.exchanges?.[selection.id];
+    if (!data) return;
+
+    if (!isCaller && data.offer && session.exchange?.id !== selection.id) {
+      const {pc, ref} = createExchange(selection.id, selection.request);
+      await pc.setRemoteDescription(data.offer);
+      if (!active()) return;
+      audioTransceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'audio');
+      if (audioTransceiver) audioTransceiver.direction = 'sendrecv';
+      await attachLocalMicToPeer();
+      await pc.setLocalDescription(await pc.createAnswer());
+      if (active()) await ref.child('answer').set(pc.localDescription.toJSON());
+    }
+    const exchange = session.exchange;
+    if (!exchange || exchange.id !== selection.id || !active()) return;
+    const {pc, seen} = exchange;
+    if (isCaller && data.answer && !pc.remoteDescription) await pc.setRemoteDescription(data.answer);
+    // Early candidates remain in the signaling snapshot until SDP is installed.
+    if (!pc.remoteDescription || !active()) return;
+    for (const [key, candidate] of Object.entries(data[remoteRole] || {})) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try { await pc.addIceCandidate(candidate); } catch (err) { report(err); }
+    }
+  }
+
+  session.listener = session.ref.on('value', snap => {
+    const value = snap.val() || {};
+    session.pending = session.pending.then(() => receive(value)).catch(report);
+  });
+  if (!isCaller) session.ref.child('request').set(session.request).catch(report);
+  // Permission may be slow or denied. Negotiation starts with an audio slot,
+  // and replaceTrack attaches the microphone whenever permission is granted.
+  acquireLocalMic().then(() => { if (active()) return attachLocalMicToPeer(); }).catch(report);
 }
 
 // Live voice status: the existing voice row + the small mic buttons beside the player names.
@@ -1815,28 +1623,15 @@ async function toggleMicrophone() {
       throw new Error("Microphone is not available. Use HTTPS or localhost and allow browser microphone permission.");
     }
 
-    let newTrackWasAdded = false;
-
     if (!localVoiceStream) {
       // Mic was not granted at room start (or permission was denied) - ask again now.
       const stream = await acquireLocalMic();
       if (!stream) throw new Error("Microphone permission denied. Allow the microphone in the browser address bar and try again.");
       await attachLocalMicToPeer();
-      newTrackWasAdded = true;
     }
 
     isMicMuted = !isMicMuted;
     localVoiceStream.getAudioTracks().forEach(t => t.enabled = !isMicMuted);
-
-    // If the track was added after the initial SDP exchange, explicitly
-    // renegotiate. This is the key fix for guest -> creator audio.
-    if (newTrackWasAdded && peerConnection) {
-      if (voiceIsCaller) {
-        await createCallerRenegotiation();
-      } else {
-        requestVoiceRenegotiation();
-      }
-    }
 
     const audio = document.getElementById("remoteAudio");
     if (audio) {
@@ -1864,9 +1659,6 @@ async function toggleSpeaker() {
     try {
       audio.muted = false;
       audio.volume = 1;
-      if (remoteVoiceStream && audio.srcObject !== remoteVoiceStream) {
-        audio.srcObject = remoteVoiceStream;
-      }
       await audio.play();
     } catch (err) {
       console.log("Speaker playback waiting:", err);
@@ -2487,6 +2279,10 @@ function finishPromotionChoice(piece) {
 }
 
 function applyHumanMove(source, target, promotion = 'q') {
+  if (currentMode === 'friend' && currentRoomCode) {
+    submitOnlineMove(source, target, promotion);
+    return false; // The saved room update advances both boards.
+  }
   const beforeEval = currentPositionCp;
   const move = game.move({ from: source, to: target, promotion });
   if (!move) return false;
@@ -2497,14 +2293,13 @@ function applyHumanMove(source, target, promotion = 'q') {
   updateUI();
   quickBotAfterMove();
   checkBotTrigger();
-  checkOnlineTrigger(move);
   return true;
 }
 
 // Drag & Drop Handlers
 function onDragStart(source, piece) {
   if (isWaitingForOpponent) return false;
-  if (currentMode === 'quick') return false;
+  if (currentMode === 'quick' || pendingOnlineMove) return false;
   if (quickBot && quickBot.over) return false;
   if (game.game_over()) return false;
   if (isBotThinking) return false;
@@ -2563,7 +2358,7 @@ function onSnapEnd() {
 // Universal Click & Touch handler for mobile & desktop
 function handleSquareClick(square) {
   if (isWaitingForOpponent) return;
-  if (currentMode === 'quick') return;
+  if (currentMode === 'quick' || pendingOnlineMove) return;
   if (quickBot && quickBot.over) return;
   if (game.game_over() || isBotThinking) return;
 
@@ -2933,8 +2728,7 @@ function setQuickMatchView(view) {
   document.body.classList.toggle('quick-match-playing', view === 'playing');
   if (view === 'playing' && !tabBeforeQuickMatch) {
     tabBeforeQuickMatch = document.querySelector('.analysis-card .tab.active');
-    const tab = window.matchMedia('(max-width: 900px)').matches ? 'chatTab' : 'movesTab';
-    document.querySelector('[data-tab="' + tab + '"]')?.click();
+    document.querySelector('[data-tab="movesTab"]')?.click();
   } else if (view !== 'playing' && tabBeforeQuickMatch) {
     tabBeforeQuickMatch.click();
     tabBeforeQuickMatch = null;
@@ -3411,6 +3205,11 @@ $(document).ready(function() {
   });
 
   // Tabs Switching
+  document.getElementById('matchChatToggle')?.addEventListener('click', () => {
+    const chat = document.getElementById('chatTab');
+    const opening = !chat.classList.contains('active-content');
+    document.querySelector(opening ? '[data-tab="chatTab"]' : '[data-tab="movesTab"]')?.click();
+  });
   document.querySelectorAll('.tab').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));

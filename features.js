@@ -70,7 +70,7 @@
     { name: 'Bullet', icon: '🔥', items: ['1+0', '2+1'] },
     { name: 'Blitz', icon: '⚡', items: ['3+0', '3+2', '5+0'] },
     { name: 'Rapid', icon: '♟', items: ['10+0', '10+5', '15+10'] },
-    { name: 'Classical', icon: '🕰', items: ['30+0'] }
+    { name: 'Classic', icon: '🕰', items: ['30+0'] }
   ];
   const QM_RETRY_MS = 7000;             // re-run server pairing + heartbeat while searching
   const QM_MAX_SEARCH_MS = 30000;   // stop searching after 5 minutes
@@ -126,7 +126,7 @@
         <div class="qm-search-box qm-video-search">
           <video src="quick-match-loop.mp4" autoplay loop muted playsinline aria-hidden="true"></video>
           <div class="qm-search-copy">
-            <strong role="status">Searching for an opponent…</strong>
+            <strong role="status">Waiting for opponent…</strong>
             <span>${esc(qmLabel(qm.timeKey))} • Elapsed <b id="qmElapsed" aria-live="off">${qmFormatElapsed(Date.now() - qm.startedAt)}</b></span>
           </div>
           <button type="button" id="qmCancelBtn" class="pill-btn resign-danger-btn">✕ Cancel</button>
@@ -155,9 +155,7 @@
       qm.timeKey = btn.dataset.qmTime;
       localStorage.setItem(QM_STORAGE_KEY, qm.timeKey);
       qm.message = '';
-      renderQuickMatchPanel();
-      if (!window.matchMedia('(max-width: 900px)').matches) qmFindOpponent();
-      else $id('quickMatchControls').querySelector('[data-qm-time].active')?.focus();
+      qmFindOpponent();
     }));
     const find = $id('qmFindBtn'); if (find) find.addEventListener('click', qmFindOpponent);
     const cancel = $id('qmCancelBtn'); if (cancel) cancel.addEventListener('click', qmCancelSearch);
@@ -249,6 +247,7 @@
   async function qmResolveSearch(run, cancel) {
     if (qm.run !== run || (!cancel && qm.phase !== 'searching')) return;
     if (cancel) {
+      if (run.cancelled) return;
       run.cancelled = true;
       $id('quickMatchControls')?.querySelector('video')?.pause();
     }
@@ -260,7 +259,7 @@
       if (run.pending) { try { await run.pending; } catch (_) {} }
       const res = await window.sbCall('quick_match_resolve', { p_search: run.id, p_cancel: cancel });
       if (qm.run !== run || (run.cancelled && !cancel)) return;
-      if (res.status === 'matched') {
+      if (res.status === 'matched' && !cancel) {
         qm.phase = 'searching'; qmHandleMatched(res); return;
       }
       qm.run = null; qm.phase = 'idle';
@@ -395,11 +394,8 @@
 
   function qmEndRoom(room, kind) {
     room.ending = true;
-    const me = currentUserId;
-    database.ref('rooms/' + room.code).transaction(cur => {
-      if (!cur || cur.gameOver) return;      // already finished: abort transaction
-      if (kind === 'aborted') return Object.assign({}, cur, { gameOver: true, result: 'aborted', winner: null });
-      return Object.assign({}, cur, { gameOver: true, result: 'left', leftBy: room.oppId, winner: me });
+    roomAction(room.code, 'disconnected').then(result => {
+      if (!result?.gameOver) room.ending = false;
     }).catch(() => { room.ending = false; });
   }
 

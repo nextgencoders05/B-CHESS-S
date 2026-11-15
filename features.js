@@ -107,11 +107,6 @@
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   }
 
-  function qmAvatar(name, photo, cls) {
-    if (photo && /^(data:image\/|https:\/\/)/.test(photo)) return `<img class="${cls}" src="${esc(photo)}" alt="" />`;
-    return `<span class="${cls} qm-avatar-fallback">${esc((name || 'P').charAt(0).toUpperCase())}</span>`;
-  }
-
   function renderQuickMatchPanel() {
     const el = $id('quickMatchControls');
     if (!el) return;
@@ -126,29 +121,15 @@
       </div>`).join('');
 
     let status = '';
-    if (qm.phase === 'searching') {
-      const elapsed = Date.now() - qm.startedAt;
+    if (['searching', 'resolving'].includes(qm.phase)) {
       status = `
-        <div class="qm-search-box">
-          <div class="qm-radar" aria-hidden="true"><span></span><span></span><span></span><i>♟</i></div>
+        <div class="qm-search-box qm-video-search">
+          <video src="quick-match-loop.mp4" autoplay loop muted playsinline aria-hidden="true"></video>
           <div class="qm-search-copy">
-            <strong>Searching for an opponent…</strong>
-            <span>${esc(qmLabel(qm.timeKey))} • <b id="qmElapsed">${qmFormatElapsed(elapsed)}</b></span>
-            <small>Searching for the same time control. A similar-Elo bot starts after 30 seconds if no player is assigned.</small>
+            <strong role="status">Searching for an opponent…</strong>
+            <span>${esc(qmLabel(qm.timeKey))} • Elapsed <b id="qmElapsed" aria-live="off">${qmFormatElapsed(Date.now() - qm.startedAt)}</b></span>
           </div>
           <button type="button" id="qmCancelBtn" class="pill-btn resign-danger-btn">✕ Cancel</button>
-        </div>`;
-    } else if (qm.phase === 'found' && qm.match) {
-      const o = qm.match.opponent || {};
-      status = `
-        <div class="qm-found-box">
-          <div class="qm-found-title">🎉 Match Found!</div>
-          <div class="qm-found-players">
-            <div class="qm-found-player">${qmAvatar(currentUserName, currentUserPhoto, 'qm-avatar')}<strong>${esc(currentUserName)}</strong><small>${esc(currentUserRating)} Elo • ${qm.match.color === 'w' ? 'White' : 'Black'}</small></div>
-            <div class="qm-found-vs">VS</div>
-            <div class="qm-found-player">${qmAvatar(o.name, o.photo, 'qm-avatar')}<strong>${esc(o.name || 'Player')}</strong><small>${esc(o.rating || 800)} Elo • ${qm.match.color === 'w' ? 'Black' : 'White'}</small></div>
-          </div>
-          <div class="qm-found-sub">${esc(qmLabel(qm.match.timeControl || qm.timeKey))} • Starting game…</div>
         </div>`;
     }
 
@@ -157,6 +138,7 @@
         <button type="button" id="qmResumeBtn" class="pill-btn highlight-btn">↩ Resume</button></div>` : '';
     const msg = qm.message ? `<div class="qm-message">${esc(qm.message)}</div>` : '';
 
+    el.querySelector('video')?.pause();
     el.innerHTML = `
       <div class="qm-head">
         <div><h3>⚡ Quick Match</h3><p>Pick a time control and play a random online opponent — no friends needed.</p></div>
@@ -167,17 +149,25 @@
       ${msg}
       ${qm.phase === 'idle' ? `<button type="button" id="qmFindBtn" class="pill-btn highlight-btn qm-find-btn">🔍 Find Opponent <small>${esc(qmLabel(qm.timeKey))}</small></button>` : ''}`;
 
+    el.classList.toggle('qm-is-searching', ['searching', 'resolving'].includes(qm.phase));
     el.querySelectorAll('[data-qm-time]').forEach(btn => btn.addEventListener('click', () => {
       if (qm.phase !== 'idle') return;
       qm.timeKey = btn.dataset.qmTime;
       localStorage.setItem(QM_STORAGE_KEY, qm.timeKey);
       qm.message = '';
       renderQuickMatchPanel();
-      qmFindOpponent();
+      if (!window.matchMedia('(max-width: 900px)').matches) qmFindOpponent();
+      else $id('quickMatchControls').querySelector('[data-qm-time].active')?.focus();
     }));
     const find = $id('qmFindBtn'); if (find) find.addEventListener('click', qmFindOpponent);
     const cancel = $id('qmCancelBtn'); if (cancel) cancel.addEventListener('click', qmCancelSearch);
     const resumeBtn = $id('qmResumeBtn'); if (resumeBtn) resumeBtn.addEventListener('click', () => { const r = qm.resume; qm.resume = null; qmHandleMatched(r, true); });
+  }
+
+  function qmClearWaitingView() {
+    const controls = $id('quickMatchControls');
+    controls.querySelector('video')?.pause();
+    controls.replaceChildren();
   }
 
   function qmApplyQuickChrome() {
@@ -258,7 +248,10 @@
 
   async function qmResolveSearch(run, cancel) {
     if (qm.run !== run || (!cancel && qm.phase !== 'searching')) return;
-    if (cancel) run.cancelled = true;
+    if (cancel) {
+      run.cancelled = true;
+      $id('quickMatchControls')?.querySelector('video')?.pause();
+    }
     qmStopTimers();
     qm.phase = 'resolving';
     if (cancel) qm.message = 'Cancelling search…';
@@ -277,6 +270,7 @@
       const rating = Object.keys(BOT_PROFILES).map(Number).reduce((a,b) =>
         Math.abs(b - Number(currentUserRating || 800)) < Math.abs(a - Number(currentUserRating || 800)) ? b : a);
       const name = QUICK_BOT_NAMES[Math.floor(Math.random() * QUICK_BOT_NAMES.length)] + ' (Bot)';
+      qmClearWaitingView();
       launchQuickBotGame(minutes * 60, name, rating, increment, run.key);
     } catch (err) {
       if (qm.run !== run && qm.run !== null) return;
@@ -298,18 +292,13 @@
     qm.match = m;
     qm.message = '';
     if (!m.opponent) m.opponent = {};
-    renderQuickMatchPanel();
+    qmClearWaitingView();
     try { playSound('move'); } catch (_) {}
     showFeatureToast(`<strong>⚡ Match found!</strong><span>vs ${esc(m.opponent.name || 'Player')} (${esc(m.opponent.rating || 800)}) • ${esc(qmLabel(m.timeControl || qm.timeKey))}</span>`);
     if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
       try { new Notification('B Chess — Match found!', { body: 'vs ' + (m.opponent.name || 'Player'), icon: 'icons/icon-192.png', tag: 'bchess-quickmatch' }); } catch (_) {}
     }
-    if (m.opponent.uid) {
-      database.ref('users/' + m.opponent.uid + '/photoData').once('value').then(s => {
-        if (qm.match === m && s.val()) { m.opponent.photo = s.val(); if (qm.phase === 'found') renderQuickMatchPanel(); }
-      }).catch(() => {});
-    }
-    setTimeout(() => { if (qm.match === m && qm.phase === 'found') qmEnterRoom(m); }, resumed ? 300 : 2200);
+    await qmEnterRoom(m);
   }
 
   async function qmEnterRoom(m) {
@@ -327,6 +316,7 @@
     if (currentMode !== 'friend') return;
 
     qm.phase = 'playing';
+    setQuickMatchView('playing');
     currentRoomCode = code;
     myOnlineColor = isWhite ? 'w' : 'b';
     friendTimeControl = Number(val.timeControl) || 0;

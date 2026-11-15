@@ -95,6 +95,7 @@
       <p id="tourMoves"></p></section>
     </section>
     <button id="modeTournamentBtn" hidden>Tournaments</button>
+    <button id="modeHistoryBtn" hidden>History</button>
     <main class="main-grid">
       <!-- Left: Eval Bar + Chessboard Section -->
       <section class="board-card">
@@ -472,9 +473,12 @@
       </div>
       <div id="reviewMoveList" class="review-move-list"></div>
       <div class="profile-actions">
+        <button id="reviewCopyMovesBtn" type="button" class="pill-btn" hidden>Copy Moves (PGN)</button>
         <button id="reviewOpenAnalysisBtn" class="pill-btn highlight-btn">Open in Analysis</button>
         <button id="closeMatchReviewBtn" class="pill-btn">Close</button>
       </div>
+      <p id="reviewCopyMovesStatus" role="status"></p>
+      <textarea id="reviewCopyMovesText" class="profile-input" readonly hidden aria-label="Moves in PGN format"></textarea>
     </div>
   </div>
 

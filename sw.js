@@ -1,5 +1,5 @@
 /* BCHESS_BUILD_VERSION: 2026-11-07-supabase */
-const CACHE_NAME = 'b-chess-shell-v14-premium';
+const CACHE_NAME = 'b-chess-shell-v15-premium-quick-history';
 const APP_SHELL = [
   './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './books_data.js', './pwa.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
@@ -31,6 +31,8 @@ self.addEventListener('fetch', event => {
     if (response && response.ok) { const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(request, copy)); }
     return response;
   };
+  // Let the browser handle MP4 range requests for inline playback.
+  if (url.pathname.endsWith('/quick-match-loop.mp4')) return;
   if (isShellCode(url, request)) {
     event.respondWith(fetch(request, { cache: 'no-cache' }).then(saveCopy).catch(() =>
       caches.match(request, { ignoreSearch: request.mode === 'navigate' }).then(cached => cached || caches.match('./index.html'))));

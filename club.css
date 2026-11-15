@@ -276,4 +276,32 @@ body.club-board-theme .square-selected { box-shadow: inset 0 0 0 4px #d8a264 !im
 @media (max-width: 350px) {
   #connectionStatus[aria-expanded="true"] .connection-label,
   #connectionStatus[data-signal="offline"] .connection-label { left: 0; right: auto; }
+/* Quick Match waiting video and live panels. */
+.qm-video-search {
+  flex-wrap: wrap;
+}
+.qm-video-search video {
+  display: block;
+  flex: 0 1 100%;
+  width: min(100%, 300px);
+  max-width: 300px;
+  min-width: 0;
+  aspect-ratio: 1;
+  margin-inline: auto;
+  border-radius: 8px;
+}
+.quick-match-playing :is([data-tab="analysisTab"], [data-tab="reviewTab"], [data-tab="evalTab"],
+  #analysisTab, #reviewTab, #evalTab, #evalBarContainer, #quickHistoryBox) {
+  display: none !important;
+}
+#reviewCopyMovesStatus:empty { display: none; }
+#reviewCopyMovesText { width: 100%; }
+
+@media (max-width: 900px) {
+  #uxNav > [data-mode="modeHistoryBtn"],
+  .quick-match-lobby :is(.board-and-eval, .captured-bar, .board-controls, #quickHistoryBox, .analysis-card),
+  .quick-match-playing :is([data-tab="movesTab"], #movesTab),
+  .quick-match-lobby #quickMatchControls.qm-is-searching .qm-groups {
+    display: none !important;
+  }
 }

@@ -8,7 +8,8 @@
     { id: 'modeFriendBtn', label: 'Friends', caption: 'Play with friends', icon: '<circle cx="8" cy="8" r="3"/><circle cx="17" cy="8" r="2.7"/><path d="M2 20v-2a6 6 0 0 1 12 0v2m2-7a5 5 0 0 1 6 5v2"/>' },
     { id: 'modeAnalyzeBtn', label: 'Analyze', caption: 'Review a position', icon: '<path d="M5 20v-5m7 5V9m7 11V4"/>' },
     { id: 'modePuzzlesBtn', label: 'Puzzles', caption: 'Solve a tactic', icon: '<path d="M4 4h5V3a2 2 0 0 1 4 0v1h5v5h1a2 2 0 0 1 0 4h-1v5h-5v1a2 2 0 0 1-4 0v-1H4v-5h1a2 2 0 0 0 0-4H4z"/>' },
-    { id: 'modeBooksBtn', label: 'Books', caption: 'Explore openings', icon: '<path d="M12 6v15M2 4c4-1 7 0 10 2 3-2 6-3 10-2v15c-4-1-7 0-10 2-3-2-6-3-10-2z"/>' }
+    { id: 'modeBooksBtn', label: 'Books', caption: 'Explore openings', icon: '<path d="M12 6v15M2 4c4-1 7 0 10 2 3-2 6-3 10-2v15c-4-1-7 0-10 2-3-2-6-3-10-2z"/>' },
+    { id: 'modeHistoryBtn', label: 'History', caption: 'Review saved games', icon: '<path d="M3 12a9 9 0 1 0 2-6M3 4v5h5m4-2v5l3 2"/>' }
   ];
   function navigationIcon(path) {
     return '<svg class="ux-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
@@ -31,7 +32,7 @@
     });
     var more = document.createElement('button'); more.className='ux-nav-item mobile-only'; more.id='mobileMoreBtn'; more.innerHTML=navigationIcon('<path d="M4 12h1m6 0h1m6 0h1" stroke-width="3"/>')+'<span>More</span>';more.setAttribute('aria-expanded','false');
     var panel=document.createElement('div');panel.id='mobileMorePanel';panel.hidden=true;
-    [{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'},{id:'modeAnalyzeBtn',label:'Analyze'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
+    [{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'},{id:'modeAnalyzeBtn',label:'Analyze'},{id:'modeHistoryBtn',label:'History'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
     more.onclick=function(){panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));};nav.appendChild(more);nav.appendChild(panel);
     document.addEventListener('click',function(e){if(!nav.contains(e.target)){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
     document.body.appendChild(nav);

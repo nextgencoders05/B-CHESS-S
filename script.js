@@ -8,6 +8,7 @@ const database = firebase.database();
 
 // Global User & Multiplayer State
 let currentUserId = null;
+let reviewOwner = null;
 let currentUserName = "Player";
 let currentUserPhoto = "";
 let currentUserRating = 800;
@@ -160,6 +161,7 @@ auth.getRedirectResult().catch(err => console.log(err));
 
 auth.onAuthStateChanged(async (user) => {
   if (user) {
+    if (currentUserId !== user.uid) clearPrivateMatchHistory();
     currentUserId = user.uid;
     const loginBtn = document.getElementById("googleLoginBtn");
     const userProfile = document.getElementById("userProfile");
@@ -194,6 +196,7 @@ auth.onAuthStateChanged(async (user) => {
   } else {
     if (challengeListenerRef) { challengeListenerRef.off(); challengeListenerRef = null; }
     challengeNotificationMap = {};
+    clearPrivateMatchHistory();
     currentUserId = null;
     currentUserName = "Player";
     currentUserPhoto = "";
@@ -686,6 +689,7 @@ function cancelWaitingChallenge() {
 }
 
 function cleanupFriendGame(resetMode = true) {
+  setQuickMatchView('');
   const wasQuickRoom = typeof qmOnRoomCleanup === 'function' ? qmOnRoomCleanup() : false;
   stopQuickMatchSearch();
   endQuickBotGame();
@@ -892,7 +896,7 @@ function showFriendMatchResult(roomValue, code) {
   const friendsBtn = document.getElementById('resultFriendsBtn');
   const closeResultBtn = document.getElementById('resultCloseBtn');
   if (closeResultBtn) closeResultBtn.onclick = closeResultAndExitRoom;
-  if (reviewBtn) reviewBtn.onclick = () => { panel.style.display='none'; document.querySelector('[data-tab="reviewTab"]')?.click(); };
+  if (reviewBtn) reviewBtn.onclick = () => { if (roomValue.quickMatch) setQuickMatchView(''); panel.style.display='none'; document.querySelector('[data-tab="reviewTab"]')?.click(); };
   if (rematchBtn) rematchBtn.onclick = () => {
     panel.style.display='none';
     const quickKey = roomValue.quickMatch ? (roomValue.quickKey || null) : null;
@@ -1270,13 +1274,54 @@ function sendChallenge(friendId, friendName, presetTime = null, friendRating = n
 }
 
 // Optional challenge metadata is stored on the opponent profile; room creation itself remains unchanged.
-function loadMatchHistory() {
-  const out=document.getElementById('matchHistoryList'); if(!out||!currentUserId)return;
-  database.ref('users/'+currentUserId+'/matchHistory').orderByChild('playedAt').limitToLast(50).once('value').then(s=>{
-    const d=s.val()||{}; const arr=Object.entries(d).map(([code,v])=>({code,...v})).sort((a,b)=>(b.playedAt||0)-(a.playedAt||0));
-    const wins=arr.filter(m=>m.result==='win').length, losses=arr.filter(m=>m.result==='loss').length, draws=arr.filter(m=>m.result==='draw').length;
-    out.innerHTML=(arr.length ? `<div class="history-summary"><strong>${wins} Wins</strong><span>${losses} Losses</span><span>${draws} Draws</span><span>${arr.length} Matches</span></div>`+arr.map(m=>`<div class="history-match-row"><div><strong>${escapeHtml(m.opponentName||'Player')}</strong><small>${escapeHtml(m.timeLabel||'No Timer')} • ${new Date(m.playedAt||Date.now()).toLocaleString()}</small></div><span class="history-result ${m.result}">${m.result.toUpperCase()}</span></div>`).join('') : '<div class="friend-empty">No friend matches yet.</div>');
-  });
+function clearPrivateMatchHistory() {
+  document.getElementById('matchHistoryList')?.replaceChildren();
+  if (reviewOwner) {
+    closeMatchReview();
+    reviewGame = null;
+    reviewFens = [];
+    reviewSans = [];
+    document.getElementById('reviewMoveList').replaceChildren();
+    document.getElementById('reviewCopyMovesText').value = '';
+  }
+}
+
+async function loadMatchHistory() {
+  const out = document.getElementById('matchHistoryList');
+  const uid = currentUserId;
+  if (!out || !uid) return;
+  out.textContent = 'Loading your matches…';
+  try {
+    const snapshot = await database.ref('users/' + uid + '/matchHistory').once('value');
+    if (currentUserId !== uid) return;
+    const matches = Object.values(snapshot.val() || {}).filter(m => m && typeof m === 'object')
+      .sort((a, b) => (b.playedAt || 0) - (a.playedAt || 0));
+    if (!matches.length) {
+      out.textContent = 'No saved matches yet.';
+      return;
+    }
+    const count = result => matches.filter(m => m.result === result).length;
+    out.innerHTML = `<div class="history-summary"><strong>${count('win')} Wins</strong><span>${count('loss')} Losses</span><span>${count('draw')} Draws</span><span>${matches.length} Matches</span></div>` +
+      matches.map((m, i) => {
+        const result = ['win', 'loss', 'draw'].includes(m.result) ? m.result : 'unknown';
+        return `<div class="history-match-row"><div><strong>vs ${escapeHtml(m.opponentName || 'Player')}</strong>
+          <small>${escapeHtml(m.timeLabel || 'No Timer')} • ${formatMatchDate(m.playedAt)}</small></div>
+          <div class="profile-match-actions"><span class="history-result ${result}">${result.toUpperCase()}</span>
+          <button type="button" class="pill-btn" data-history-review="${i}">Review</button></div></div>`;
+      }).join('');
+    out.querySelectorAll('[data-history-review]').forEach(button => {
+      button.addEventListener('click', () => {
+        if (currentUserId !== uid) return;
+        if (isOnlineMatchActive || window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver)) {
+          alert('Finish your current match before reviewing a saved game.');
+          return;
+        }
+        showSavedMatchReview(matches[Number(button.dataset.historyReview)], currentUserName, uid);
+      });
+    });
+  } catch (_) {
+    if (currentUserId === uid) out.textContent = 'Could not load your match history. Open History to try again.';
+  }
 }
 
 function checkOnlineTrigger(move) {
@@ -2880,6 +2925,23 @@ function updateUI() {
   }
 }
 
+let tabBeforeQuickMatch = null;
+
+function setQuickMatchView(view) {
+  const wasLobby = document.body.classList.contains('quick-match-lobby');
+  document.body.classList.toggle('quick-match-lobby', view === 'lobby');
+  document.body.classList.toggle('quick-match-playing', view === 'playing');
+  if (view === 'playing' && !tabBeforeQuickMatch) {
+    tabBeforeQuickMatch = document.querySelector('.analysis-card .tab.active');
+    const tab = window.matchMedia('(max-width: 900px)').matches ? 'chatTab' : 'movesTab';
+    document.querySelector('[data-tab="' + tab + '"]')?.click();
+  } else if (view !== 'playing' && tabBeforeQuickMatch) {
+    tabBeforeQuickMatch.click();
+    tabBeforeQuickMatch = null;
+  }
+  if (wasLobby && view !== 'lobby') board?.resize();
+}
+
 function setGameMode(mode) {
   if (window.bchessTournamentActive) { alert('Finish your tournament match first.'); return; }
   if (window.closeTournamentMode) window.closeTournamentMode();
@@ -2897,6 +2959,7 @@ function setGameMode(mode) {
   if (window.closePuzzleMode) window.closePuzzleMode();
   if (window.BChessBadges) window.BChessBadges.clear('myBoard');
   currentMode = mode;
+  setQuickMatchView(mode === 'quick' ? 'lobby' : '');
   selectedSquare = null;
   clearClickHighlights();
 
@@ -3584,10 +3647,13 @@ let reviewIndex = 0;
 
 function openMatchReview(idx, playerName) {
   if (window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver)) return;
-  const m = inspectedMatches[idx];
+  showSavedMatchReview(inspectedMatches[idx], playerName);
+}
+
+function showSavedMatchReview(m, playerName, owner = null) {
   if (!m) return;
   const sans = Array.isArray(m.moves) ? m.moves : (m.moves ? Object.values(m.moves) : []);
-  if (!sans.length) { alert('No move record is available for this match.'); return; }
+  if (!sans.length && !owner) { alert('No move record is available for this match.'); return; }
   reviewGame = new Chess();
   reviewFens = [reviewGame.fen()];
   reviewSans = [];
@@ -3599,6 +3665,11 @@ function openMatchReview(idx, playerName) {
   reviewIndex = reviewFens.length - 1;
   document.getElementById('matchReviewTitle').textContent = `${playerName} vs ${m.opponentName || 'Player'}`;
   document.getElementById('matchReviewSub').textContent = `${(m.result || 'draw').toUpperCase()} • ${m.timeLabel || 'No Timer'} • ${formatMatchDate(m.playedAt)}`;
+  reviewOwner = owner;
+  document.getElementById('reviewCopyMovesBtn').hidden = !owner || !reviewSans.length;
+  document.getElementById('reviewCopyMovesStatus').textContent = owner && !reviewSans.length ? 'No moves were saved for this match.' : '';
+  document.getElementById('reviewCopyMovesText').hidden = true;
+  document.getElementById('reviewCopyMovesText').value = '';
   document.getElementById('matchReviewModal').style.display = 'flex';
   if (reviewBoard) { try { reviewBoard.destroy(); } catch (_) {} reviewBoard = null; }
   reviewBoard = Chessboard('reviewBoard', { draggable: false, position: reviewFens[reviewIndex], pieceTheme: PIECE_IMG_URL });
@@ -3631,7 +3702,33 @@ function setReviewIndex(i) {
   });
 }
 
+async function copySavedMatchMoves() {
+  const owner = reviewOwner;
+  const reviewedGame = reviewGame;
+  if (!owner || currentUserId !== owner || !reviewBoard) return;
+  const moves = reviewedGame.pgn();
+  const status = document.getElementById('reviewCopyMovesStatus');
+  try {
+    await navigator.clipboard.writeText(moves);
+    if (reviewOwner === owner && reviewGame === reviewedGame && reviewBoard) status.textContent = 'Moves copied.';
+  } catch (_) {
+    if (reviewOwner !== owner || reviewGame !== reviewedGame || !reviewBoard) return;
+    const input = document.getElementById('reviewCopyMovesText');
+    input.value = moves;
+    input.hidden = false;
+    input.focus();
+    input.select();
+    status.textContent = 'Copy the selected moves.';
+  }
+}
+
 function closeMatchReview() {
+  reviewOwner = null;
+  document.getElementById('reviewCopyMovesBtn').hidden = true;
+  document.getElementById('reviewCopyMovesStatus').textContent = '';
+  const copyText = document.getElementById('reviewCopyMovesText');
+  copyText.hidden = true;
+  copyText.value = '';
   document.getElementById('matchReviewModal').style.display = 'none';
   if (reviewBoard) { try { reviewBoard.destroy(); } catch (_) {} reviewBoard = null; }
 }
@@ -3640,6 +3737,7 @@ function openReviewInAnalysis() {
   if (window.bchessTournamentActive || isOnlineMatchActive || currentRoomCode) { alert('Finish your current match before loading a game into Analysis.'); return; }
   const sans = reviewSans.slice();
   const initialReviewFen = reviewFens[0];
+  if (reviewOwner) closeFriendsModal();
   closeMatchReview();
   closePlayerProfile();
   setGameMode('analysis');
@@ -3759,6 +3857,8 @@ $(document).ready(function() {
   bind('reviewEndBtn', () => setReviewIndex(reviewFens.length - 1));
   bind('reviewFlipBtn', () => { if (reviewBoard) reviewBoard.flip(); });
   bind('reviewOpenAnalysisBtn', openReviewInAnalysis);
+  bind('reviewCopyMovesBtn', copySavedMatchMoves);
+  bind('modeHistoryBtn', () => openFriendsModal('history'));
 
   // Books
   bind('modeBooksBtn', openBooksModal);
@@ -4141,6 +4241,7 @@ function launchQuickBotGame(tc, name, rating, increment = 0, timeKey = null) {
 // Same screen as an online friend match (room bar, clocks, chat, mic) - no bot controls.
 function applyQuickBotChrome() {
   if (!quickBot) return;
+  setQuickMatchView('playing');
   const el = (id) => document.getElementById(id);
   if (el('botControls')) el('botControls').style.display = 'none';
   if (el('friendControls')) el('friendControls').style.display = 'flex';

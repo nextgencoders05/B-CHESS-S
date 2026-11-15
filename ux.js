@@ -22,18 +22,25 @@
     nav.appendChild(logo);
     var btns = items.map(function (it, idx) {
       var b = document.createElement('button');
-      b.type = 'button'; b.className = 'ux-nav-item';
+      b.type = 'button'; b.className = 'ux-nav-item'; b.dataset.mode = it.id;
       b.innerHTML = '<span class="ux-ico">' + it.ico + '</span><span>' + it.label + '</span>';
       b.addEventListener('click', function () { targets[idx].click(); setTimeout(sync, 0); });
       nav.appendChild(b);
       return b;
     });
+    var more = document.createElement('button'); more.className='ux-nav-item mobile-only'; more.id='mobileMoreBtn'; more.innerHTML='<span class="ux-ico">☰</span><span>More</span>';more.setAttribute('aria-expanded','false');
+    var panel=document.createElement('div');panel.id='mobileMorePanel';panel.hidden=true;
+    [{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
+    more.onclick=function(){panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));};nav.appendChild(more);nav.appendChild(panel);
+    document.addEventListener('click',function(e){if(!nav.contains(e.target)){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
     document.body.appendChild(nav);
     function sync() {
       targets.forEach(function (t, i) { btns[i].classList.toggle('active', t.classList.contains('active')); });
+      more.classList.toggle('active',['modeFriendBtn','modeBooksBtn','modeTournamentBtn'].some(function(id){return document.getElementById(id).classList.contains('active');}));
     }
     var mo = new MutationObserver(sync);
     targets.forEach(function (t) { mo.observe(t, { attributes: true, attributeFilter: ['class'] }); });
+    mo.observe(document.getElementById('modeTournamentBtn'), {attributes:true,attributeFilter:['class']});
     sync();
     document.body.classList.add('ux-nav-ready');
   }

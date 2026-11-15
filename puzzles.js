@@ -3,8 +3,34 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const rpc = (name,args) => window.sbCall(name,args);
-  const state = { active:false, generation:0, list:[], completed:new Set(), board:null, game:null, puzzle:null, index:0, selected:null, busy:false, moves:[], preview:null };
-  function message(text) { $('puzzleStatus').textContent = text; }
+  const state = { active:false, generation:0, list:[], completed:new Set(), board:null, game:null, puzzle:null, index:0, selected:null, busy:false, moves:[], preview:null, attempt:null, hints:0, hintBusy:false };
+  function message(text) { $('puzzleStatus').textContent = text; updateTurn(); }
+  function updateTurn(){
+    const el=$('puzzleTurn');if(!state.puzzle||!state.game){el.textContent='Select an available stage';return;}
+    const color=state.game.turn()==='w'?'White':'Black';el.replaceChildren();const token=document.createElement('span');token.className='turn-token '+color.toLowerCase();token.setAttribute('aria-hidden','true');el.append(token,document.createTextNode('Stage '+state.puzzle.stage+' • '+color+' to move'));
+    $('puzzleHintBtn').disabled=state.hintBusy||state.busy||state.hints<=0||state.index>=state.puzzle.solution.length;
+  }
+  function clearHint(){document.querySelectorAll('#puzzleBoard .puzzle-hint-square').forEach(x=>x.classList.remove('puzzle-hint-square'));}
+  async function hintStatus(){try{const r=await rpc('puzzle_hint_status',{});state.hints=r.remaining;$('puzzleHintCount').textContent='Hints left today: '+r.remaining+'/3';$('puzzleHintBtn').title=r.remaining?'Highlight the piece to move':'Available again at midnight IST';updateTurn();}catch(e){$('puzzleHintCount').textContent='Hints unavailable: '+e.message;}}
+  async function hint(){if(!state.puzzle||state.busy||state.hintBusy||state.hints<=0)return;const generation=state.generation;state.hintBusy=true;updateTurn();
+    try{const r=await rpc('puzzle_hint',{p_id:state.puzzle.id,p_attempt:state.attempt,p_ply:state.index});if(generation!==state.generation||!state.active)return;state.hints=r.remaining;$('puzzleHintCount').textContent='Hints left today: '+r.remaining+'/3';clearHint();document.querySelector('#puzzleBoard [data-square="'+r.source+'"]').classList.add('puzzle-hint-square');message('Hint: move the highlighted piece.');}
+    catch(e){if(generation===state.generation)message(e.message);await hintStatus();}finally{state.hintBusy=false;updateTurn();}
+  }
+  let adminPuzzles=[],miniBoards=[];
+  async function adminList(){
+    try{adminPuzzles=await rpc('admin_puzzle_list',{});miniBoards.forEach(b=>b.destroy());miniBoards=[];$('adminPuzzleList').replaceChildren();$('adminPuzzleBatches').replaceChildren();
+    adminPuzzles.forEach(p=>{const card=document.createElement('article');card.className='admin-puzzle-card';const label=document.createElement('label'),box=document.createElement('input');box.type='checkbox';box.value=p.id;box.className='puzzle-select';label.append(box,document.createTextNode(' Stage '+p.stage));const preview=document.createElement('div');preview.id='admin-puzzle-'+p.id;preview.className='admin-puzzle-preview';const del=document.createElement('button');del.className='pill-btn resign-danger-btn';del.textContent='Delete';del.onclick=()=>deletePuzzles([p.id]);card.append(label,preview,del);$('adminPuzzleList').append(card);miniBoards.push(Chessboard(preview.id,{position:p.fen,draggable:false,pieceTheme:PIECE_IMG_URL}));});
+    const batches=[...new Set(adminPuzzles.map(p=>p.batch_id).filter(Boolean))];batches.forEach(id=>{const group=adminPuzzles.filter(p=>p.batch_id===id),button=document.createElement('button');button.className='pill-btn';button.textContent='Delete batch '+id.slice(0,8)+' ('+group.length+' stages)';button.onclick=()=>deletePuzzles(group.map(p=>p.id),id);$('adminPuzzleBatches').append(button);});
+    $('adminPuzzleMessage').textContent=adminPuzzles.length+' published puzzles. Earlier uploads without batch IDs can be selected individually.';
+    }catch(e){$('adminPuzzleMessage').textContent=e.message;}
+  }
+  async function deletePuzzles(ids,batch=null){if(!ids.length){$('adminPuzzleMessage').textContent='Select puzzles first.';return;}const stages=adminPuzzles.filter(p=>ids.includes(p.id)).map(p=>p.stage);if(!confirm('Delete '+ids.length+' puzzle(s): stages '+stages.join(', ')+'? Only these puzzles and their progress will be removed. Remaining progress is preserved.'))return;
+    try{await rpc('admin_delete_puzzles',{p_ids:batch?null:ids,p_batch:batch});await adminList();if(state.active)await refreshActive();}catch(e){$('adminPuzzleMessage').textContent=e.message;}
+  }
+  async function refreshActive(){if(!state.active)return;const generation=state.generation;try{const r=await rpc('get_puzzle_stages',{});if(!state.active||generation!==state.generation)return;state.list=r.puzzles;state.completed=new Set(r.completed);
+    if(state.puzzle){const found=state.list.find(p=>p.id===state.puzzle.id);if(!found){state.generation++;state.puzzle=null;state.busy=false;state.board?.position('empty',false);window.BChessBadges?.clear('puzzleBoard');message('This puzzle was deleted. Choose an available stage.');}else state.puzzle.stage=found.stage;}
+    renderStages();updateTurn();}catch(_){} }
+
   function strictPosition(fen) {
     const chess = new Chess();
     if (!chess.load(fen)) throw new Error('Invalid FEN: expected all six position fields.');
@@ -95,7 +121,7 @@
     try {
       const result=await rpc('admin_publish_puzzles',{p_entries:batch});
       $('puzzleImportStatus').textContent='Published '+result.added+' new stages. '+result.skipped+' duplicates skipped. Refresh preview for current stage numbers.';
-      state.preview=null;
+      state.preview=null;await adminList();
     } catch(e) {$('puzzleImportStatus').textContent=e.message; $('puzzlePublishBtn').disabled=false;}
   }
   function invalidate() {state.preview=null;$('puzzlePublishBtn').disabled=true;$('puzzleImportPreview').replaceChildren();}
@@ -110,13 +136,16 @@
       button.onclick=()=>start(p);$('puzzleStages').append(button);
     });
   }
-  function start(puzzle) {
+  function start(puzzle,newAttempt=false) {
+    const key='bChessAttempt:'+currentUserId+':'+puzzle.id;
+    state.attempt=!newAttempt&&sessionStorage.getItem(key)||crypto.randomUUID();sessionStorage.setItem(key,state.attempt);
+    clearHint();window.BChessBadges?.clear('puzzleBoard');
     state.generation++; state.puzzle=puzzle; state.game=new Chess(puzzle.fen);state.index=0;state.moves=[];state.busy=false;state.selected=null;
     if(!state.board) state.board=Chessboard('puzzleBoard',{draggable:true,position:puzzle.fen,pieceTheme:PIECE_IMG_URL,
       onDragStart:(source,piece)=>!state.busy && state.active && piece[0]===state.game.turn(),
       onDrop:(from,to)=>{attempt(from,to);return 'snapback';},onSnapEnd:()=>state.board.position(state.game.fen())});
     state.board.orientation(state.game.turn()==='w'?'white':'black');state.board.position(puzzle.fen,false);state.board.resize();
-    message('Stage '+puzzle.stage+' — '+(state.game.turn()==='w'?'White':'Black')+' to move.');renderStages();
+    message('Your turn.');renderStages();hintStatus();
   }
   async function attempt(from,to) {
     if(state.busy||!state.active||!state.puzzle||state.index>=state.puzzle.solution.length) return;
@@ -133,15 +162,21 @@
       state.busy=false;
       if (!promotion) {message('Promotion cancelled. Choose a move to retry.');return;}
     }
+    const beforeFen=chess.fen();
     const move=chess.move({from,to,promotion:promotion||'q'});
     if(!move) {message('Illegal move. Try again.');return;}
+    clearHint();
+    const afterFen=chess.fen();
     const uci=move.from+move.to+(move.promotion||'');
-    if(uci!==p.solution[state.index]) {chess.undo();state.board.position(chess.fen());message('Not the intended move. Try again.');return;}
+    if(uci!==p.solution[state.index]) {chess.undo();state.board.position(chess.fen());message('Not the intended solution — try again.');return;}
     state.moves.push(uci);state.index++;state.busy=true;state.board.position(chess.fen());playSound('move');
+    window.BChessBadges?.inspect('puzzleBoard',beforeFen,move,afterFen,()=>state.active&&state.generation===generation&&state.game.fen()===afterFen);
     if(state.index<p.solution.length) {
+      message('Opponent is moving…');
       await new Promise(resolve=>setTimeout(resolve,400));
       if(generation!==state.generation||!state.active)return;
-      const reply=p.solution[state.index];moveToken(chess,reply);state.moves.push(reply);state.index++;state.board.position(chess.fen());
+      const reply=p.solution[state.index],replyBefore=chess.fen(),replyMove=moveToken(chess,reply);state.moves.push(reply);state.index++;state.board.position(chess.fen());
+      const replyAfter=chess.fen();window.BChessBadges?.inspect('puzzleBoard',replyBefore,replyMove,replyAfter,()=>state.active&&state.generation===generation&&state.game.fen()===replyAfter);
     }
     if(state.index===p.solution.length) {
       message('Correct! Saving progress…');
@@ -150,10 +185,10 @@
         if(generation!==state.generation||!state.active)return;
         state.completed.add(p.id);renderStages();message('Stage '+p.stage+' completed! '+(state.list.some(x=>x.stage>p.stage)?'The next stage is unlocked.':'All available stages completed.'));
       }catch(e){if(generation===state.generation){message('Could not save: '+e.message+' Use Retry stage to try again.');}}
-    } else {state.busy=false;message('Correct. Your next move.');}
+    } else {state.busy=false;message('Correct. Your turn.');}
   }
   async function open() {
-    if(currentRoomCode||isOnlineMatchActive||(quickBot&&!quickBot.over)) return alert('Finish your current match before opening Puzzles.');
+    if(window.bchessTournamentActive||currentRoomCode||isOnlineMatchActive||(quickBot&&!quickBot.over)) return alert('Finish your current match before opening Puzzles.');
     if(!currentUserId)return triggerGoogleLogin();
     if(!requireTermsAccepted())return;
     setGameMode('quick'); if(window.qmCancelActiveSearch)window.qmCancelActiveSearch();
@@ -170,10 +205,16 @@
       if(state.list.length)start(state.list.find(p=>!state.completed.has(p.id))||state.list[0]);else message('No published puzzles yet.');
     }catch(e){if(state.active)message(e.message);}
   }
-  window.closePuzzleMode=()=>{state.active=false;state.generation++;document.body.classList.remove('puzzle-mode');$('puzzlesPanel').hidden=true;$('modePuzzlesBtn').classList.remove('active');};
+  window.closePuzzleMode=()=>{window.BChessBadges?.clear('puzzleBoard');state.active=false;state.generation++;document.body.classList.remove('puzzle-mode');$('puzzlesPanel').hidden=true;$('modePuzzlesBtn').classList.remove('active');};
   function init(){
     $('modePuzzlesBtn').onclick=open;$('puzzlePreviewBtn').onclick=preview;$('puzzlePublishBtn').onclick=publish;
-    $('puzzleRetry').onclick=()=>{if(state.puzzle)start(state.puzzle);};
+    $('puzzleRetry').onclick=()=>{if(state.puzzle)start(state.puzzle,true);};
+    $('puzzleHintBtn').onclick=hint;
+    $('adminPuzzleRefresh').onclick=adminList;
+    $('adminPuzzleDelete').onclick=()=>deletePuzzles(Array.from(document.querySelectorAll('.puzzle-select:checked')).map(x=>x.value));
+    document.addEventListener('bchess-admin-open',adminList);
+    document.addEventListener('bchess-admin-close',()=>{miniBoards.forEach(b=>b.destroy());miniBoards=[];adminPuzzles=[];$('adminPuzzleList').replaceChildren();$('adminPuzzleBatches').replaceChildren();});
+    setInterval(()=>{if(state.active){refreshActive();hintStatus();}},5000);
     ['puzzleSource','puzzleSolution','puzzleFormat'].forEach(id=>$(id).addEventListener('input',invalidate));
     $('puzzleFiles').onchange=async()=>{
       invalidate();try {const texts=[];for(const file of $('puzzleFiles').files){if(file.size>5*1024*1024)throw new Error('Each file must be under 5 MB.');texts.push(await file.text());}

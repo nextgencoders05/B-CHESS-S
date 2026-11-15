@@ -1,0 +1,41 @@
+#userProfile{cursor:pointer;gap:6px;min-height:44px}
+#userNameDisplay{display:none!important}
+#userProfile:focus-visible{outline:2px solid #81b64c;outline-offset:3px}
+#headerAnalysisBtn{min-height:44px}
+#profileCurrentRating{font-weight:700}
+.turn-banner{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;padding:12px;background:#34312c;border-radius:10px;min-height:50px}
+.turn-token{width:25px;height:25px;border-radius:50%;border:2px solid #aaa;display:inline-block;flex-shrink:0}
+.turn-token.white{background:#fff}.turn-token.black{background:#171717}
+.hint-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}.hint-row small{width:100%;color:#bbb}
+.puzzle-hint-square{box-shadow:inset 0 0 0 5px #ffd34d!important}
+#adminPuzzleList{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin:16px 0;max-height:560px;overflow:auto}
+.admin-puzzle-card{padding:10px;border:1px solid #555;border-radius:10px}.admin-puzzle-preview{width:128px;max-width:100%;margin:8px auto}
+#adminPuzzleBatches{display:flex;flex-wrap:wrap;gap:8px}
+#adminThemePreview{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}#adminThemePreview figure{margin:0;padding:8px;background:#555;border-radius:8px;text-align:center}#adminThemePreview img{width:64px;height:64px;object-fit:contain}
+body.remote-board-theme .white-1e1d7{background-image:var(--custom-light)!important;background-size:cover!important}
+body.remote-board-theme .black-3c85d{background-image:var(--custom-dark)!important;background-size:cover!important}
+.quality-feedback{min-height:25px;padding:5px 0;font-weight:700;color:#ddd}
+.quality-3d{position:absolute;right:-3px;top:-3px;z-index:8;pointer-events:none;width:clamp(20px,3vw,29px);height:clamp(20px,3vw,29px);border-radius:50%;display:grid;place-items:center;font-family:Arial,sans-serif;font-weight:900;font-size:clamp(12px,2vw,18px);color:#122022;background:radial-gradient(circle at 30% 20%,#ffffffc0,transparent 55%),var(--badge-color);border:1px solid #ffffffa0;box-shadow:inset 0 -3px 3px #0005,0 2px 0 #0008,0 3px 6px #0006;animation:badge-pop .35s ease-out}
+.quality-brilliant{--badge-color:#25d9cd}.quality-great{--badge-color:#579dff}.quality-best,.quality-good{--badge-color:#81b64c}.quality-excellent{--badge-color:#b4df79}.quality-inaccuracy{--badge-color:#f5d24e}.quality-mistake{--badge-color:#fa9a36}.quality-blunder{--badge-color:#f35b58}
+@keyframes badge-pop{0%{transform:scale(.4) translateY(4px);opacity:0}65%{transform:scale(1.14) translateY(-2px)}100%{transform:scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.quality-3d{animation:none}}
+#analysisPGNImport{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:12px}#analysisPGNInput{width:100%;background:#262421;color:#eee;border:1px solid #555;border-radius:8px;padding:10px}
+#tournamentPanel{background:#262421;border-radius:12px;color:#eee;padding:18px;margin:16px 0}
+body.tournament-mode .main-grid{display:none!important}
+#tourLeaderboard table{border-collapse:collapse;width:100%;margin:12px 0}#tourLeaderboard th,#tourLeaderboard td{padding:8px;text-align:left;border-bottom:1px solid #555}
+#tourLeaderboard tbody tr:first-child{background:#435b29;font-weight:bold}#tourLeaderboard img{width:26px;height:26px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:6px}
+.tour-card{padding:12px;margin:10px 0;border:1px solid #555;border-radius:10px}.tour-card button{margin:6px 6px 0 0}.tour-card p{margin:6px 0}
+#tournamentBoard{width:min(100%,480px);margin:14px auto}.tour-clocks{display:flex;justify-content:space-between;gap:12px;font-size:20px;font-weight:bold}#tourMoves{overflow-wrap:anywhere;max-height:140px;overflow:auto}
+.mobile-only,#mobileMorePanel{display:none!important}
+@media(max-width:700px){
+ .mobile-only{display:flex!important}
+ #uxNav [data-mode="modeAnalyzeBtn"],#uxNav [data-mode="modeFriendBtn"],#uxNav [data-mode="modeBooksBtn"]{display:none!important}
+ #uxNav{justify-content:space-around!important;overflow:visible!important}
+ #uxNav .ux-nav-item{flex:1;min-width:44px;min-height:48px;font-size:11px!important;padding:4px!important}
+ #mobileMorePanel:not([hidden]){display:flex!important;position:absolute;bottom:calc(100% + 8px);right:8px;flex-direction:column;gap:8px;min-width:170px;padding:12px;background:#262421;border:1px solid #666;border-radius:12px;box-shadow:0 5px 20px #0008}
+ #mobileMorePanel button{min-height:44px;text-align:left}
+ #headerAnalysisBtn span{display:none}#headerAnalysisBtn{min-width:44px;padding:6px!important}
+ #tournamentPanel{padding:12px}#tourLeaderboard{overflow-x:auto}.turn-banner{font-size:18px}
+}
+
+.tour-avatar-fallback{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#666;color:#fff;margin-right:6px}

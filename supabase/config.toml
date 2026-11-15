@@ -1,0 +1,3 @@
+# The Edge Function validates the signed-in user's JWT using auth.getUser.
+[functions.bchess-secure]
+verify_jwt = true

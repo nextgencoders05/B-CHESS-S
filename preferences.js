@@ -11,6 +11,7 @@
       el('appMenuBtn').setAttribute('aria-expanded', 'false');
       el('preferencesTitle').textContent = theme ? 'Theme' : 'Settings';
       el('settingsPanel').hidden = theme; el('themePanel').hidden = !theme;
+      if (theme && window.BChessThemes) window.BChessThemes.refresh();
       modal.style.display = 'flex'; el('preferencesClose').focus();
     }
     function close() { modal.style.display = 'none'; if (returnFocus) returnFocus.focus(); }
@@ -25,26 +26,8 @@
       });
     }
     ['soundToggleBtn','arrowToggleBtn'].forEach(id => el(id).addEventListener('click', () => queueMicrotask(sync))); sync();
-    const boards = [{ id:'green', label:'Green & White', light:'#eeeed2', dark:'#769656' },{ id:'wood', label:'Wood & Cream', light:'#f0d9b5', dark:'#b58863' }];
-    let selected = localStorage.getItem('bChessBoard') || 'green';
-    if (!boards.some(b => b.id === selected)) selected = 'green';
-    function applyBoard(id) {
-      selected = id; document.body.classList.toggle('wood-theme', id === 'wood'); localStorage.setItem('bChessBoard', id);
-      el('boardChoices').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.board === id)));
-    }
-    boards.forEach(b => {
-      const button = document.createElement('button'); button.className = 'theme-choice pill-btn'; button.dataset.board = b.id;
-      const preview = document.createElement('span'); preview.className = 'board-preview'; preview.setAttribute('aria-hidden','true');
-      for (let i=0;i<16;i++) { const square = document.createElement('i'); square.style.background = (Math.floor(i/4)+i)%2 ? b.dark : b.light; preview.append(square); }
-      button.append(preview, document.createTextNode(b.label)); button.onclick = () => applyBoard(b.id); el('boardChoices').append(button);
-    });
-    applyBoard(selected);
-    // The supplied ZIP contains one complete local coin set. Do not advertise missing sets.
-    const coins = document.createElement('button'); coins.className = 'theme-choice pill-btn'; coins.setAttribute('aria-pressed','true');
-    const preview = document.createElement('span');
-    ['wk','wq','wn','bk','bq','bn'].forEach(p => { const img = document.createElement('img'); img.src = 'pieces/'+p+'.png'; img.alt=''; preview.append(img); });
-    coins.append(preview, document.createTextNode('Classic')); coins.onclick = () => localStorage.setItem('bChessCoins','classic');
-    el('coinChoices').append(coins); localStorage.setItem('bChessCoins','classic');
+    if (window.BChessThemes) window.BChessThemes.initChoices();
+
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();

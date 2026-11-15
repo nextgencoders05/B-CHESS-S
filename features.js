@@ -662,6 +662,7 @@
     adminResetForm();
     adminStartListener();
     adminBumpIdle();
+    document.dispatchEvent(new CustomEvent('bchess-admin-open'));
   }
 
   function closeAdminDashboard() {
@@ -672,6 +673,7 @@
     const list = $id('adminMaterialsList'); if (list) list.innerHTML = '';
     clearTimeout(ad.idleTimer);
     if (window.clearPuzzleAdmin) window.clearPuzzleAdmin();
+    document.dispatchEvent(new CustomEvent('bchess-admin-close'));
   }
 
   function adminBumpIdle() {

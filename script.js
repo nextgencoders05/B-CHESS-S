@@ -235,6 +235,7 @@ function openProfileModal(firstSetup = false) {
   const status = document.getElementById("profileSaveStatus");
   if (!modal) return;
 
+  const ratingLabel = document.getElementById("profileCurrentRating"); if (ratingLabel) ratingLabel.textContent = "Elo: " + currentUserRating;
   if (usernameInput) usernameInput.value = currentUserName === "Player" ? "" : currentUserName;
   if (photoInput) photoInput.value = "";
   if (status) status.textContent = "";
@@ -310,7 +311,7 @@ async function saveUserProfile() {
     if (modal && !data.rating) modal.style.display = "flex";
   } catch (err) {
     console.error("Profile save error:", err);
-    if (status) status.textContent = "Could not save profile: " + err.message;
+    if (status) status.textContent = /bchess_unique_username|duplicate key/i.test(err.message) ? "Username already taken. Please choose another." : "Could not save profile: " + err.message;
   } finally {
     if (saveBtn) saveBtn.disabled = false;
   }
@@ -2121,6 +2122,8 @@ function setupStockfishListeners() {
       }
     }
 
+    if ((window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver) || (isOnlineMatchActive && !quickBot?.over)) && /^(info |bestmove)/.test(line)) return;
+
     if (line.startsWith('info depth')) {
       const depthMatch = line.match(/depth (\d+)/);
       const scoreMatch = line.match(/score cp (-?\d+)/);
@@ -2199,7 +2202,7 @@ function setupStockfishListeners() {
 // Correct Centipawn Difference Calculation for Real Blunders & Mistakes
 function resolveMoveQuality(index, evalAfter) {
   const item = moveQualityHistory[index];
-  if (!item) return;
+  if (!item || item.badgeManaged) return;
 
   item.evalAfter = evalAfter;
   const evalBefore = item.evalBefore;
@@ -2273,7 +2276,7 @@ function drawBestMoveArrow(uci) {
   clearHighlights();
   const arrowEl = document.getElementById('bestMoveArrow');
 
-  if (!showBestMoveArrow || currentMode === 'bot' || !uci || uci.length < 4 || game.game_over()) {
+  if (window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver) || !showBestMoveArrow || currentMode === 'bot' || !uci || uci.length < 4 || game.game_over()) {
     arrowEl.setAttribute('visibility', 'hidden');
     return;
   }
@@ -2338,6 +2341,7 @@ function showLegalDestinations(sourceSquare) {
 }
 
 function analyzePosition() {
+  if (window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver)) return;
   if (!stockfish || !engineReady) return;
   if (game.game_over()) {
     document.getElementById('bestMoveText').textContent = 'Game Over';
@@ -2556,12 +2560,20 @@ function handleSquareClick(square) {
 }
 
 function recordMoveQuality(move, beforeEval) {
+  const badgeIndex=moveQualityHistory.length;
+  if (window.BChessBadges && currentMode === 'analysis' && !currentRoomCode && !isOnlineMatchActive) {
+    const replay = new Chess(); const history = game.history();
+    const initial = game.header().FEN; if (initial) replay.load(initial);
+    history.slice(0,-1).forEach(m => replay.move(m));
+    window.BChessBadges.inspect('myBoard', replay.fen(), move, game.fen(), () => currentMode === 'analysis' && game.fen() === window.BChessBadges.position('myBoard'), result => { const item=moveQualityHistory[badgeIndex]; if(item && item.san===move.san){item.quality=result.quality;item.loss=result.loss;updateGameReview();renderMoveHistoryBadges();} });
+  }
   const newIndex = moveQualityHistory.length;
   moveQualityHistory.push({
     san: move.san,
     color: move.color,
     evalBefore: beforeEval,
     evalAfter: beforeEval,
+    badgeManaged: currentMode === 'analysis' && !!window.BChessBadges,
     quality: '...', // Pending evaluation from Stockfish
     loss: 0
   });
@@ -2869,6 +2881,8 @@ function updateUI() {
 }
 
 function setGameMode(mode) {
+  if (window.bchessTournamentActive) { alert('Finish your tournament match first.'); return; }
+  if (window.closeTournamentMode) window.closeTournamentMode();
   if (isOnlineMatchActive && mode !== 'friend') {
     alert("நண்பருடன் நேரலை மேட்ச் நடந்துகொண்டிருக்கிறது! விளையாடும் போது அனலைஸ் அல்லது பாட் மோடிற்கு மாற முடியாது.\n\nமேட்ச் முடிந்த பின், டிரா அல்லது ரிசைன் செய்த பிறகே பிற மோடுகளுக்கு மாற முடியும்.");
     return;
@@ -2881,6 +2895,7 @@ function setGameMode(mode) {
 
   if (mode !== 'quick' && window.qmCancelActiveSearch) window.qmCancelActiveSearch();
   if (window.closePuzzleMode) window.closePuzzleMode();
+  if (window.BChessBadges) window.BChessBadges.clear('myBoard');
   currentMode = mode;
   selectedSquare = null;
   clearClickHighlights();
@@ -2964,6 +2979,7 @@ function setGameMode(mode) {
 }
 
 function startNewBotGame() {
+  if (window.bchessTournamentActive) return;
   game.reset();
   redoStack = [];
   moveQualityHistory = [];
@@ -3044,7 +3060,7 @@ function copyFullAnalysisReport() {
 }
 
 // Preload + decode all piece images so the first drag has no image-load/decode delay.
-const PIECE_IMG_URL = piece => 'pieces/' + piece.toLowerCase() + '.png';
+const PIECE_IMG_URL = piece => window.BChessThemes ? window.BChessThemes.pieceURL(piece) : 'pieces/' + piece.toLowerCase() + '.png';
 const preloadedPieceImages = [];
 function preloadPieceImages() {
   ['wP','wN','wB','wR','wQ','wK','bP','bN','bB','bR','bQ','bK'].forEach(p => {
@@ -3567,6 +3583,7 @@ let reviewSans = [];
 let reviewIndex = 0;
 
 function openMatchReview(idx, playerName) {
+  if (window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver)) return;
   const m = inspectedMatches[idx];
   if (!m) return;
   const sans = Array.isArray(m.moves) ? m.moves : (m.moves ? Object.values(m.moves) : []);
@@ -3603,6 +3620,10 @@ function renderReviewMoveList() {
 function setReviewIndex(i) {
   reviewIndex = Math.max(0, Math.min(reviewFens.length - 1, i));
   if (reviewBoard) reviewBoard.position(reviewFens[reviewIndex]);
+  if (window.BChessBadges) {
+    if (reviewIndex > 0) { const c = new Chess(reviewFens[reviewIndex-1]); const m = c.move(reviewSans[reviewIndex-1]); if (m) window.BChessBadges.inspect('reviewBoard', reviewFens[reviewIndex-1], m, reviewFens[reviewIndex], () => !!reviewBoard && reviewFens[reviewIndex] === window.BChessBadges.position('reviewBoard')); }
+    else window.BChessBadges.clear('reviewBoard');
+  }
   document.querySelectorAll('#reviewMoveList .rv-move').forEach(b => {
     const active = Number(b.dataset.i) === reviewIndex;
     b.classList.toggle('active', active);
@@ -3616,12 +3637,13 @@ function closeMatchReview() {
 }
 
 function openReviewInAnalysis() {
-  if (isOnlineMatchActive || currentRoomCode) { alert('Finish your current match before loading a game into Analysis.'); return; }
+  if (window.bchessTournamentActive || isOnlineMatchActive || currentRoomCode) { alert('Finish your current match before loading a game into Analysis.'); return; }
   const sans = reviewSans.slice();
+  const initialReviewFen = reviewFens[0];
   closeMatchReview();
   closePlayerProfile();
   setGameMode('analysis');
-  game.reset();
+  if (initialReviewFen) game.load(initialReviewFen); else game.reset();
   redoStack = [];
   moveQualityHistory = [];
   sans.forEach(san => game.move(san));

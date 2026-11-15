@@ -1,12 +1,13 @@
 {
   "private": true,
   "scripts": {
-    "test": "node interactions.cjs && node database.cjs"
+    "test": "node interactions.cjs && node next-interactions.cjs && node next-database.cjs && node secure-rules.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16",
     "@sinonjs/fake-timers": "15.4.0",
     "jquery": "3.7.1",
-    "jsdom": "31.0.1"
+    "jsdom": "31.0.1",
+    "chess.js": "1.4.0"
   }
 }

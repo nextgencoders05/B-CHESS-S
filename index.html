@@ -39,7 +39,7 @@
       <div class="brand">
         <span class="pawn-icon">♟</span>
         <div>
-          <h1>B Chess Analyzer</h1>
+          <h1>B Chess</h1>
         </div>
       </div>
       <!-- Player Search -->
@@ -52,6 +52,7 @@
         <div id="playerSearchResults" class="player-search-results" style="display:none;"></div>
       </div>
       <div class="theme-controls">
+        <button id="headerAnalysisBtn" class="pill-btn" aria-label="Open Analysis">🔍 <span>Analysis</span></button>
         <div class="app-menu-wrap">
           <button id="appMenuBtn" class="pill-btn" aria-label="Open menu" aria-expanded="false" aria-controls="appMenu">☰</button>
           <div id="appMenu" hidden><button id="settingsMenuBtn" class="pill-btn">Settings</button><button id="themeBtn" class="pill-btn">Theme</button></div>
@@ -66,13 +67,13 @@
             <div id="challengeNotificationList" class="challenge-notification-list"></div>
           </div>
         </div>
-        <div id="userProfile" class="user-profile-widget" style="display: none;">
+        <div id="userProfile" role="button" tabindex="0" aria-label="Open your profile" class="user-profile-widget" style="display: none;">
           <img id="userAvatarImg" class="user-avatar-img" src="" alt="Profile" style="display:none;" />
           <span id="userAvatarFallback" class="user-avatar-dot">P</span>
-          <span id="userNameDisplay" class="user-name-txt">Player</span>
+          <span hidden id="userNameDisplay" class="user-name-txt">Player</span>
           <span id="userRatingDisplay" class="rating-badge-pill">800</span>
-          <button id="editProfileBtn" class="pill-btn profile-edit-pill">Profile</button>
-          <button id="signOutBtn" class="pill-btn signout-pill">Sign Out</button>
+
+
         </div>
       </div>
     </header>
@@ -81,8 +82,19 @@
     <section id="puzzlesPanel" hidden>
       <h2>🧩 Puzzles</h2><p id="puzzleStatus" role="status" aria-live="polite"></p>
       <div id="puzzleStages" aria-label="Puzzle stages"></div>
-      <div id="puzzleBoard"></div><button id="puzzleRetry" class="pill-btn">Retry stage</button>
+      <div id="puzzleTurn" class="turn-banner" aria-live="polite"></div><div id="puzzleBoard"></div><div id="puzzleQuality" class="quality-feedback" aria-live="polite"></div>
+      <div class="hint-row"><button id="puzzleHintBtn" class="pill-btn">💡 Hint</button><span id="puzzleHintCount">Hints left today: —/3</span><small>Resets at midnight IST (Asia/Kolkata)</small></div><button id="puzzleRetry" class="pill-btn">Retry stage</button>
     </section>
+    <section id="tournamentPanel" hidden>
+      <h2>🏆 Tournaments</h2><p id="tourMessage" role="status" aria-live="polite"></p>
+      <div id="tourLeaderboard"></div>
+      <div id="tourList"></div><div id="tourDetails"></div>
+      <section id="tourGamePanel" hidden><h3 id="tourGameTitle"></h3><div id="tourClocks" class="tour-clocks"></div>
+      <div id="tournamentBoard"></div><p id="tourGameStatus" aria-live="polite"></p>
+      <button id="tourResign" class="pill-btn">Resign</button><button id="tourDraw" class="pill-btn">Offer draw</button><button id="tourAcceptDraw" class="pill-btn" hidden>Accept draw</button>
+      <p id="tourMoves"></p></section>
+    </section>
+    <button id="modeTournamentBtn" hidden>Tournaments</button>
     <main class="main-grid">
       <!-- Left: Eval Bar + Chessboard Section -->
       <section class="board-card">
@@ -577,7 +589,8 @@
       <h2>Set Up Your Profile</h2>
       <p class="modal-subtext">Choose the username and profile picture you want to use on B Chess Analyzer.</p>
       <label class="profile-field-label" for="profileUsernameInput">Username</label>
-      <input id="profileUsernameInput" class="profile-input" type="text" maxlength="20" placeholder="Enter username" autocomplete="nickname" />
+      <p id="profileCurrentRating"></p><button id="signOutBtn" type="button" class="pill-btn signout-pill">Sign Out</button>
+        <input id="profileUsernameInput" class="profile-input" type="text" maxlength="20" placeholder="Enter username" autocomplete="nickname" />
       <label class="profile-field-label" for="profilePhotoInput">Profile Picture</label>
       <input id="profilePhotoInput" class="profile-file-input" type="file" accept="image/*" />
       <div class="profile-preview-wrap">
@@ -655,7 +668,32 @@
         <label for="puzzleSolution">Solution moves (single FEN only)</label><input id="puzzleSolution" class="profile-input" placeholder="e.g. e2e4 e7e5 g1f3" />
         <label for="puzzleFiles">Upload PGN, FEN, TXT or JSON files</label><input id="puzzleFiles" type="file" accept=".pgn,.fen,.txt,.json" multiple />
         <div><button id="puzzlePreviewBtn" class="pill-btn">Validate & preview</button> <button id="puzzlePublishBtn" class="pill-btn highlight-btn" disabled>Publish valid stages</button></div>
+        <div><button id="adminPuzzleRefresh" class="pill-btn">Refresh published puzzles</button><button id="adminPuzzleDelete" class="pill-btn resign-danger-btn">Delete selected</button></div><p id="adminPuzzleMessage" role="status"></p><div id="adminPuzzleBatches"></div><div id="adminPuzzleList"></div>
         <div id="puzzleImportStatus" role="status" aria-live="polite"></div><ol id="puzzleImportPreview"></ol>
+      </section>
+      <section class="admin-section">
+        <h3>Theme Management</h3>
+        <label for="adminThemeKind">Category</label><select id="adminThemeKind" class="styled-select"><option value="board">Board</option><option value="coins">Coins / Piece Sets</option></select>
+        <label for="adminThemeName">Theme name</label><input id="adminThemeName" class="profile-input" maxlength="60" />
+        <p id="adminThemeHelp"></p><input id="adminThemeFiles" type="file" accept="image/png,.png" multiple />
+        <div id="adminThemePreview"></div><button id="adminThemePublish" class="pill-btn highlight-btn" disabled>Publish theme</button><p id="adminThemeStatus" role="status"></p>
+      </section>
+      <section class="admin-section">
+        <h3>Tournaments</h3>
+        <p>Single round-robin • each pair plays once • round count follows the registered player count • odd-player byes are rest rounds (0 points).</p>
+        <form id="adminTournamentForm" class="admin-form">
+          <input id="adminTourId" type="hidden" />
+          <label for="adminTourName">Tournament name</label><input id="adminTourName" class="profile-input" required minlength="2" maxlength="80" />
+          <label for="adminTourCategory">Category</label><select id="adminTourCategory" class="styled-select"><option>Blitz</option><option>Rapid</option></select>
+          <label for="adminTourBase">Minutes per side</label><input id="adminTourBase" class="profile-input" type="number" min="0.5" max="120" step="0.5" value="5" required />
+          <label for="adminTourIncrement">Increment (seconds)</label><input id="adminTourIncrement" class="profile-input" type="number" min="0" max="120" value="0" required />
+          <p>All times below are IST (Asia/Kolkata). Rounds are determined by the final player count.</p>
+          <label for="adminTourOpens">Registration opens — IST</label><input id="adminTourOpens" class="profile-input" type="datetime-local" required />
+          <label for="adminTourCloses">Registration closes — IST</label><input id="adminTourCloses" class="profile-input" type="datetime-local" required />
+          <label for="adminTourStarts">Scheduled start — IST</label><input id="adminTourStarts" class="profile-input" type="datetime-local" required />
+          <label><input id="adminTourPublished" type="checkbox" checked /> Publish registration</label>
+          <div><button class="pill-btn highlight-btn" type="submit">Save tournament</button><button id="adminTourNew" type="button" class="pill-btn">New</button></div>
+        </form><p id="adminTourStatus" role="status"></p><button id="adminTourRefresh" class="pill-btn">Refresh tournaments</button><div id="adminTourList"></div>
       </section>
       <section class="admin-section">
         <h3>📚 Learning Materials Management</h3>
@@ -687,8 +725,13 @@
     </section>
   </div>
   <link rel="stylesheet" href="updates.css" />
+  <link rel="stylesheet" href="next-update.css" />
   <script src="features.js"></script>
+  <script src="next-core.js"></script>
+  <script src="move-badges.js"></script>
   <script src="puzzles.js"></script>
+  <script src="theme-manager.js"></script>
+  <script src="tournaments.js"></script>
   <script src="preferences.js"></script>
 </body>
 </html>

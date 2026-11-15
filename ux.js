@@ -2,14 +2,17 @@
    mode buttons. It never changes game logic, voice/mic, rules or modes. */
 (function () {
   'use strict';
-  var items = [
-    { id: 'modeQuickBtn',   ico: '⚡', label: 'Quick Match' },
-    { id: 'modeBotBtn',     ico: '🤖', label: 'Play' },
-    { id: 'modeFriendBtn',  ico: '👥', label: 'Friends' },
-    { id: 'modeAnalyzeBtn', ico: '🔍', label: 'Analyze' },
-    { id: 'modePuzzlesBtn', ico: '🧩', label: 'Puzzles' },
-    { id: 'modeBooksBtn',   ico: '📚', label: 'Books' }
+  const items = [
+    { id: 'modeQuickBtn', label: 'Quick Match', caption: 'Find a match', icon: '<path d="m13 2-9 12h7l-1 8 10-12h-7z"/>' },
+    { id: 'modeBotBtn', label: 'Play', caption: 'Play against the bot', icon: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M2 11v5m20-5v5"/><circle cx="12" cy="3" r="1.5"/><circle cx="8.5" cy="14" r="1"/><circle cx="15.5" cy="14" r="1"/>' },
+    { id: 'modeFriendBtn', label: 'Friends', caption: 'Play with friends', icon: '<circle cx="8" cy="8" r="3"/><circle cx="17" cy="8" r="2.7"/><path d="M2 20v-2a6 6 0 0 1 12 0v2m2-7a5 5 0 0 1 6 5v2"/>' },
+    { id: 'modeAnalyzeBtn', label: 'Analyze', caption: 'Review a position', icon: '<path d="M5 20v-5m7 5V9m7 11V4"/>' },
+    { id: 'modePuzzlesBtn', label: 'Puzzles', caption: 'Solve a tactic', icon: '<path d="M4 4h5V3a2 2 0 0 1 4 0v1h5v5h1a2 2 0 0 1 0 4h-1v5h-5v1a2 2 0 0 1-4 0v-1H4v-5h1a2 2 0 0 0 0-4H4z"/>' },
+    { id: 'modeBooksBtn', label: 'Books', caption: 'Explore openings', icon: '<path d="M12 6v15M2 4c4-1 7 0 10 2 3-2 6-3 10-2v15c-4-1-7 0-10 2-3-2-6-3-10-2z"/>' }
   ];
+  function navigationIcon(path) {
+    return '<svg class="ux-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
+  }
   function init() {
     if (document.getElementById('uxNav')) return;
     var targets = items.map(function (i) { return document.getElementById(i.id); });
@@ -17,26 +20,24 @@
     var nav = document.createElement('nav');
     nav.id = 'uxNav';
     nav.setAttribute('aria-label', 'Main navigation');
-    var logo = document.createElement('div');
-    logo.className = 'ux-nav-logo'; logo.textContent = '♟';
-    nav.appendChild(logo);
     var btns = items.map(function (it, idx) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'ux-nav-item'; b.dataset.mode = it.id;
-      b.innerHTML = '<span class="ux-ico">' + it.ico + '</span><span>' + it.label + '</span>';
+      b.innerHTML = navigationIcon(it.icon) + '<span class="ux-nav-copy"><span>' + it.label +
+        '</span><small class="ux-caption" aria-hidden="true">' + it.caption + '</small></span>';
       b.addEventListener('click', function () { targets[idx].click(); setTimeout(sync, 0); });
       nav.appendChild(b);
       return b;
     });
-    var more = document.createElement('button'); more.className='ux-nav-item mobile-only'; more.id='mobileMoreBtn'; more.innerHTML='<span class="ux-ico">☰</span><span>More</span>';more.setAttribute('aria-expanded','false');
+    var more = document.createElement('button'); more.className='ux-nav-item mobile-only'; more.id='mobileMoreBtn'; more.innerHTML=navigationIcon('<path d="M4 12h1m6 0h1m6 0h1" stroke-width="3"/>')+'<span>More</span>';more.setAttribute('aria-expanded','false');
     var panel=document.createElement('div');panel.id='mobileMorePanel';panel.hidden=true;
-    [{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
+    [{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'},{id:'modeAnalyzeBtn',label:'Analyze'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
     more.onclick=function(){panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));};nav.appendChild(more);nav.appendChild(panel);
     document.addEventListener('click',function(e){if(!nav.contains(e.target)){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
     document.body.appendChild(nav);
     function sync() {
       targets.forEach(function (t, i) { btns[i].classList.toggle('active', t.classList.contains('active')); });
-      more.classList.toggle('active',['modeFriendBtn','modeBooksBtn','modeTournamentBtn'].some(function(id){return document.getElementById(id).classList.contains('active');}));
+      more.classList.toggle('active',['modeFriendBtn','modeBooksBtn','modeTournamentBtn','modeAnalyzeBtn'].some(function(id){return document.getElementById(id).classList.contains('active');}));
     }
     var mo = new MutationObserver(sync);
     targets.forEach(function (t) { mo.observe(t, { attributes: true, attributeFilter: ['class'] }); });

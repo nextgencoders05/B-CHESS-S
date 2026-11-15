@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<style>.detail{fill:none;stroke:#675342;stroke-width:1.6}.eye{fill:#675342;stroke:none}</style>
+<g fill="#fff0cf" stroke="#201b15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 48c-1-10 9-14 11-24l-9 6-8 2-4-6L24 15l-1-8 8 5c14-2 19 13 14 36z"/><circle class="eye" cx="26" cy="20" r="1.8"/><path class="detail" d="M35 17c8 6 9 16 6 24"/><path d="M17 48h30l4 6v4H13v-4z"/></g>
+</svg>

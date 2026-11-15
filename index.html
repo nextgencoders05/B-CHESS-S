@@ -52,7 +52,7 @@
         <div id="playerSearchResults" class="player-search-results" style="display:none;"></div>
       </div>
       <div class="theme-controls">
-        <button id="headerAnalysisBtn" class="pill-btn" aria-label="Open Analysis">🔍 <span>Analysis</span></button>
+        <button type="button" id="connectionStatus" class="pill-btn connection-control" aria-expanded="false" aria-controls="connectionStatusText" aria-label="Your B Chess connection: Checking connection"><span class="connection-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="connection-label" id="connectionStatusText" aria-live="polite">Checking connection</span></button>
         <div class="app-menu-wrap">
           <button id="appMenuBtn" class="pill-btn" aria-label="Open menu" aria-expanded="false" aria-controls="appMenu">☰</button>
           <div id="appMenu" hidden><button id="settingsMenuBtn" class="pill-btn">Settings</button><button id="themeBtn" class="pill-btn">Theme</button></div>
@@ -174,6 +174,7 @@
             <span class="player-dot black-dot"></span>
             <span class="player-name" id="topPlayerName">Black</span>
             <button type="button" id="topMicBtn" class="board-mic-btn" style="display:none;" aria-label="Microphone status">🔇 OFF</button>
+            <span id="topConnectionStatus" class="connection-peer" role="img" hidden><span class="connection-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="connection-label"></span></span>
           </div>
           <div class="captured-pieces-list" id="topCapturedPieces"></div>
           <span class="material-advantage" id="topMaterialAdv"></span>
@@ -216,6 +217,7 @@
             <span class="player-dot white-dot"></span>
             <span class="player-name" id="bottomPlayerName">White</span>
             <button type="button" id="bottomMicBtn" class="board-mic-btn" style="display:none;" aria-label="Microphone status">🔇 OFF</button>
+            <span id="bottomConnectionStatus" class="connection-peer" role="img" hidden><span class="connection-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="connection-label"></span></span>
           </div>
           <div class="captured-pieces-list" id="bottomCapturedPieces"></div>
           <span class="material-advantage" id="bottomMaterialAdv"></span>
@@ -734,5 +736,6 @@
   <script src="theme-manager.js"></script>
   <script src="tournaments.js"></script>
   <script src="preferences.js"></script>
+  <script src="connection-quality.js"></script>
 </body>
 </html>

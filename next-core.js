@@ -7,7 +7,6 @@
  };
  function init(){
   const profile=document.getElementById('userProfile');profile.addEventListener('click',()=>openProfileModal(false));profile.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openProfileModal(false);}});
-  document.getElementById('headerAnalysisBtn').onclick=()=>document.getElementById('modeAnalyzeBtn').click();
   const wrap=document.createElement('div');wrap.id='analysisPGNImport';wrap.innerHTML='<label for="analysisPGNInput">Review a PGN game</label><textarea id="analysisPGNInput" rows="3" placeholder="Paste PGN game"></textarea><button id="analysisPGNLoad" class="pill-btn">Load PGN review</button><span id="analysisPGNError" role="status"></span>';
   document.getElementById('fenInput').parentNode.append(wrap);
   document.getElementById('analysisPGNLoad').onclick=()=>{

@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<style>.detail{fill:none;stroke:#a89c83;stroke-width:1.6}.eye{fill:#a89c83;stroke:none}</style>
+<g fill="#101414" stroke="#e5cda2" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"><path d="M23 48l-4-21-5-13 11 10 2-15 5 15 6-15 2 15 11-10-6 13-4 21z"/><circle cx="14" cy="13" r="2.8"/><circle cx="27" cy="9" r="2.8"/><circle cx="38" cy="9" r="2.8"/><circle cx="51" cy="13" r="2.8"/><path class="detail" d="M22 36h21"/><path d="M17 48h30l4 6v4H13v-4z"/></g>
+</svg>

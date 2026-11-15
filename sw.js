@@ -1,11 +1,12 @@
 /* BCHESS_BUILD_VERSION: 2026-11-07-supabase */
-const CACHE_NAME = 'b-chess-shell-v13-club';
+const CACHE_NAME = 'b-chess-shell-v14-premium';
 const APP_SHELL = [
-  './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './books_data.js', './pwa.js',
+  './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './books_data.js', './pwa.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './pieces/wb.png', './pieces/bp.png', './pieces/wk.png', './pieces/wq.png',
   './pieces/wp.png', './pieces/bn.png', './pieces/wn.png', './pieces/wr.png',
-  './pieces/bb.png', './pieces/bk.png', './pieces/bq.png', './pieces/br.png'
+  './pieces/bb.png', './pieces/bk.png', './pieces/bq.png', './pieces/br.png',
+  './pieces/club-classic/wk.svg', './pieces/club-classic/wq.svg', './pieces/club-classic/wr.svg', './pieces/club-classic/wb.svg', './pieces/club-classic/wn.svg', './pieces/club-classic/wp.svg', './pieces/club-classic/bk.svg', './pieces/club-classic/bq.svg', './pieces/club-classic/br.svg', './pieces/club-classic/bb.svg', './pieces/club-classic/bn.svg', './pieces/club-classic/bp.svg'
 ];
 self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();

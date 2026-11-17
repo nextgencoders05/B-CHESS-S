@@ -1,0 +1,21 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> node interactions.cjs && node next-interactions.cjs && node next-database.cjs && node secure-rules.cjs && node responsive-update.cjs && node friend-ui.cjs && node friend-database.cjs
+
+PASS DOM desktop/mobile configurations: header menu, settings immediate/persistent, theme position/orientation preservation, refresh, admin close without signout, navigation.
+PASS timed flow: immediate card search, duplicate tap guard, 30-second fallback, closest Elo, Bot label, both increments, cancellation never starts bot.
+PASS puzzles: PGN and FEN parsing, bulk order, invalid positions/moves, black-to-move FEN, wrong move retry, automatic reply, completion/unlock, resume.
+PASS added DOM interactions: profile, mobile menu, deletion/batches, turn indicators, hints, PGN review, incomplete assets, dynamic themes, classifications/stale UCI, competitive suppression and tournament registration/gameplay transport.
+PASS connection RPC, reciprocal samples, authorization, and unchanged room document.
+PASS original SQL regression suite.
+PASS unique usernames, daily hints/repeats/exhaustion, admin deletion, contiguous stages, remaining progress, batch deletion.
+PASS tournament registration idempotency, round-robin pairs/byes, admin permissions, legal-move authority, version races, increment, draw acceptance, resignations, automatic rounds, standings and finish.
+PASS server-day reset, parallel hint requests, whitespace conflicts, timeout/disconnect/double-forfeit/cancellation, storage policy permissions and published catalog visibility.
+PASS competing username claims and duplicate preflight stops migration without renaming accounts.
+PASS secure pure rules: PNG decode, truncation/CRC/extra data/dimensions rejection; replayed checkmate, repetition draw and stored-position integrity.
+PASS optimistic online preview, snapback suppression, duplicate guard, authoritative commit, stale snapshot, rejection and timeout rollback.
+PASS premove opt-in/persistence, click, drag, cancel, replace, invalid discard, promotion, bot and online path.
+PASS 100-stage map, selection/reselection/deselection, solution submission, current marker and stable IDs after deletion (mock RPC).
+PASS friend popup delivery (mock subscription), countdown, duplicate suppression, persistent bell, accept, decline and account reconnect.
+PASS friend SQL migration twice, authentication, send/dedupe, persisted inbox, stale action rejection, reciprocal accept, decline and existing history preservation.

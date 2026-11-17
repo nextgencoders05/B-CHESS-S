@@ -1,0 +1,17 @@
+RESPONSIVE_PUZZLE_UPDATE.md
+index.html
+interaction-update.css
+interaction-update.js
+puzzles.js
+script.js
+supabase/friend_requests_update.sql
+sw.js
+tests/browser-update.cjs
+tests/friend-database.cjs
+tests/friend-ui.cjs
+tests/interactions.cjs
+tests/package-lock.json
+tests/package.json
+tests/responsive-update.cjs
+tests/vendor/chessboard.min.css
+UPDATE_CHANGED_FILES.txt

@@ -1,7 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "test": "node interactions.cjs && node next-interactions.cjs && node next-database.cjs && node secure-rules.cjs"
+    "test": "node interactions.cjs && node next-interactions.cjs && node next-database.cjs && node secure-rules.cjs && node responsive-update.cjs && node friend-ui.cjs && node friend-database.cjs",
+    "test:browser": "node browser-update.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16",

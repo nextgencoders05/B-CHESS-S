@@ -633,6 +633,7 @@ function cancelWaitingChallenge() {
 }
 
 function cleanupFriendGame(resetMode = true) {
+  window.BChessPremove?.clear();
   setQuickMatchView('');
   pendingOnlineMove = null;
   pendingClockStart = false;
@@ -697,6 +698,7 @@ function listenToRoom(code, isCreator) {
       }
       return;
     }
+    if ((val.moveHistory || []).length < game.history().length) return;
     friendRoomData = val;
     updateFriendPlayerLabels(val);
     if (val.guestId && !val.gameOver) setQuickMatchView('playing');
@@ -1026,6 +1028,7 @@ function renderChallengeNotifications() {
     const avatar = challengeAvatarHtml(c);
     return `<div class="challenge-notification-row"><div class="challenge-profile">${avatar}<div><strong>${escapeHtml(c.fromName||'Player')}</strong><small>${Number(c.fromRating||800)} Elo • ${escapeHtml(c.timeLabel||friendTimeLabel(c.timeControl))}</small></div></div><div class="challenge-actions"><button class="challenge-accept-btn" data-code="${escapeHtml(code)}">✓</button><button class="challenge-decline-btn" data-code="${escapeHtml(code)}">×</button></div></div>`;
   }).join('') : '<div class="friend-empty">No new challenges.</div>';
+  window.BChessFriends?.render();
   list.querySelectorAll('.challenge-accept-btn').forEach(btn => btn.onclick = () => acceptChallengeNotification(btn.dataset.code));
   list.querySelectorAll('.challenge-decline-btn').forEach(btn => btn.onclick = () => declineChallengeNotification(btn.dataset.code));
 }
@@ -1161,24 +1164,17 @@ function searchFriendByUsername() {
   }).catch(err=>{ out.innerHTML='<div class="friend-empty">Search is unavailable with the current database rules.</div>'; console.warn(err); });
 }
 
-function sendFriendRequest(friendId, friendName) {
-  if (!currentUserId || friendId===currentUserId) return;
-  const payload={fromId:currentUserId,fromName:currentUserName,fromRating:currentUserRating,toId:friendId,createdAt:firebase.database.ServerValue.TIMESTAMP};
-  const updates={};
-  updates['users/'+friendId+'/friendRequests/incoming/'+currentUserId]=payload;
-  updates['users/'+currentUserId+'/friendRequests/outgoing/'+friendId]={toId:friendId,toName:friendName,createdAt:firebase.database.ServerValue.TIMESTAMP};
-  database.ref().update(updates).then(()=>alert('Friend request sent to '+friendName+'.'));
+async function sendFriendRequest(friendId, friendName) {
+  if (!currentUserId || friendId === currentUserId) return;
+  try {
+    const result = await window.sbCall('bchess_friend_request', {p_other: friendId, p_action: 'send'});
+    await window.BChessFriends?.refresh();
+    alert(result.status === 'friends' ? 'You are already friends.' : 'Friend request sent to ' + friendName + '.');
+  } catch (err) { alert('Could not send friend request: ' + err.message); }
 }
 
 function acceptFriendRequest(fromId, req) {
-  const now=firebase.database.ServerValue.TIMESTAMP;
-  const updates={};
-  updates['users/'+currentUserId+'/friends/'+fromId]={username:req.fromName||'Player',rating:req.fromRating||800};
-  updates['users/'+fromId+'/friends/'+currentUserId]={username:currentUserName,rating:currentUserRating};
-  updates['users/'+currentUserId+'/friendRequests/incoming/'+fromId]=null;
-  updates['users/'+fromId+'/friendRequests/outgoing/'+currentUserId]=null;
-  updates['users/'+currentUserId+'/friendsUpdatedAt']=now;
-  database.ref().update(updates).then(()=>loadFriendRequests());
+  return window.BChessFriends?.respond(fromId, 'accept', req);
 }
 
 function loadFriendRequests() {
@@ -1186,7 +1182,8 @@ function loadFriendRequests() {
   const incoming=document.getElementById('incomingRequests'), outgoing=document.getElementById('outgoingRequests');
   database.ref('users/'+currentUserId+'/friendRequests/incoming').once('value').then(s=>{
     const d=s.val()||{}; const ids=Object.keys(d);
-    incoming.innerHTML=ids.length?ids.map(id=>{const r=d[id];return `<div class="friend-row"><div><strong>${escapeHtml(r.fromName||'Player')}</strong><small>${Number(r.fromRating||800)} Elo</small></div><button class="pill-btn accept-request-btn" data-id="${id}">Accept</button></div>`}).join(''):'<div class="friend-empty">No incoming requests.</div>';
+    incoming.innerHTML=ids.length?ids.map(id=>{const r=d[id];return `<div class="friend-row"><div><strong>${escapeHtml(r.fromName||'Player')}</strong><small>${Number(r.fromRating||800)} Elo</small></div><button class="pill-btn accept-request-btn" data-id="${id}">Accept</button><button class="pill-btn decline-request-btn" data-id="${id}">Decline</button></div>`}).join(''):'<div class="friend-empty">No incoming requests.</div>';
+    incoming.querySelectorAll('.decline-request-btn').forEach(btn=>btn.onclick=()=>window.BChessFriends?.respond(btn.dataset.id,'decline',d[btn.dataset.id]));
     incoming.querySelectorAll('.accept-request-btn').forEach(btn=>btn.addEventListener('click',()=>acceptFriendRequest(btn.dataset.id,d[btn.dataset.id])));
   });
   database.ref('users/'+currentUserId+'/friendRequests/outgoing').once('value').then(s=>{const d=s.val()||{}; const ids=Object.keys(d); outgoing.innerHTML=ids.length?ids.map(id=>`<div class="friend-row"><div><strong>${escapeHtml(d[id].toName||'Player')}</strong><small>Request sent</small></div></div>`).join(''):'<div class="friend-empty">No sent requests.</div>';});
@@ -1264,6 +1261,11 @@ async function loadMatchHistory() {
 function syncOnlinePosition(room) {
   const moves = Array.isArray(room.moveHistory) ? room.moveHistory : [];
   const current = game.history();
+  // Rooms never undo moves. Ignore a delayed snapshot after a newer acknowledgement.
+  if (moves.length < current.length) return;
+  if (pendingOnlineMove && moves.length <= pendingOnlineMove.ply && !room.gameOver) return;
+  if (pendingOnlineMove) { pendingOnlineMove = null; if (moves.length === current.length) board.position(game.fen()); }
+  if (room.gameOver) window.BChessPremove?.clear();
   if (current.length === moves.length && current.every((san, i) => san === moves[i])) return;
   const replay = new Chess();
   for (const san of moves) {
@@ -1284,25 +1286,44 @@ function syncOnlinePosition(room) {
 
 function submitOnlineMove(source, target, promotion) {
   if (pendingOnlineMove || !friendRoomData?.guestId || friendRoomData.gameOver ||
-      game.turn() !== myOnlineColor || (friendTimeControl > 0 && !friendRoomData.clockStartedAt)) return;
+      game.turn() !== myOnlineColor || (friendTimeControl > 0 && !friendRoomData.clockStartedAt)) return false;
   const probe = new Chess(game.fen());
-  if (!probe.move({from: source, to: target, promotion})) return;
-
+  const predictedMove = probe.move({from: source, to: target, promotion});
+  if (!predictedMove) return false;
   const code = currentRoomCode;
   const request = {action: 'room_move', room: code, before: friendRoomData.gameFen || 'start',
     ply: game.history().length, move: {from: source, to: target, promotion}};
-  pendingOnlineMove = request;
-  window.bchessSecure(request).then(room => {
-    // The RPC response may arrive before Realtime. Read through the versioned
-    // room cache so a later opponent move cannot be replaced by this response.
-    if (currentRoomCode === code && room) return database.ref('rooms/' + code).once('value');
+  const pending = {...request, previewFen: probe.fen(), san: predictedMove.san};
+  pendingOnlineMove = pending;
+  // Only the display is optimistic: history, clocks and results remain authoritative.
+  board.position(pending.previewFen);
+  let timeout;
+  const deadline = new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Connection timed out. Refreshing the saved position.')), 15000); });
+  Promise.race([window.bchessSecure(request), deadline]).then(room => {
+    if (currentRoomCode !== code) return;
+    if (room && (room.moveHistory || []).length >= game.history().length) {
+      friendRoomData = room;
+      syncOnlinePosition(room);
+    }
+    return database.ref('rooms/' + code).once('value');
   }).catch(async err => {
     if (currentRoomCode !== code) return;
+    // Realtime may already have confirmed this move despite an HTTP failure.
+    if (game.history()[request.ply] === pending.san) return;
+    if (pendingOnlineMove === pending) pendingOnlineMove = null;
+    board.position(game.fen());
+    window.BChessPremove?.clear();
     await database.ref('rooms/' + code).once('value').catch(() => {});
-    if (currentRoomCode === code) alert(err.message);
+    if (currentRoomCode === code) alert('Move could not be confirmed. ' + err.message);
   }).finally(() => {
-    if (pendingOnlineMove === request) pendingOnlineMove = null;
+    clearTimeout(timeout);
+    if (pendingOnlineMove === pending) {
+      pendingOnlineMove = null;
+      if (currentRoomCode === code) board.position(game.fen());
+    }
+    window.BChessPremove?.schedule();
   });
+  return true;
 }
 
 function resignGame() {
@@ -2279,9 +2300,9 @@ function finishPromotionChoice(piece) {
 }
 
 function applyHumanMove(source, target, promotion = 'q') {
+  if (currentMode === 'bot' && (game.turn() !== playerColor || isBotThinking || quickBot?.over)) return false;
   if (currentMode === 'friend' && currentRoomCode) {
-    submitOnlineMove(source, target, promotion);
-    return false; // The saved room update advances both boards.
+    return submitOnlineMove(source, target, promotion); // Preview only; server commits the move.
   }
   const beforeEval = currentPositionCp;
   const move = game.move({ from: source, to: target, promotion });
@@ -2298,6 +2319,7 @@ function applyHumanMove(source, target, promotion = 'q') {
 
 // Drag & Drop Handlers
 function onDragStart(source, piece) {
+  if (window.BChessPremove?.waiting()) return window.BChessPremove.drag(source, piece);
   if (isWaitingForOpponent) return false;
   if (currentMode === 'quick' || pendingOnlineMove) return false;
   if (quickBot && quickBot.over) return false;
@@ -2328,6 +2350,7 @@ function onDragStart(source, piece) {
 function onDrop(source, target) {
   dragActive = false;
   lastDropTime = Date.now();
+  if (window.BChessPremove?.drop(source, target)) return 'snapback';
 
   if (source === target) {
     if (selectedSquare === source) {
@@ -2352,11 +2375,13 @@ function onDrop(source, target) {
 }
 
 function onSnapEnd() {
-  board.position(game.fen());
+  board.position(pendingOnlineMove?.previewFen || game.fen());
+  window.BChessPremove?.paint();
 }
 
 // Universal Click & Touch handler for mobile & desktop
 function handleSquareClick(square) {
+  if (window.BChessPremove?.click(square)) return;
   if (isWaitingForOpponent) return;
   if (currentMode === 'quick' || pendingOnlineMove) return;
   if (quickBot && quickBot.over) return;
@@ -2694,6 +2719,7 @@ function checkBotTrigger() {
 }
 
 function updateUI() {
+  window.BChessPremove?.schedule();
   const currentOpening = detectOpening();
   document.getElementById('openingName').textContent = currentOpening;
 
@@ -2752,6 +2778,7 @@ function setGameMode(mode) {
   if (mode !== 'quick' && window.qmCancelActiveSearch) window.qmCancelActiveSearch();
   if (window.closePuzzleMode) window.closePuzzleMode();
   if (window.BChessBadges) window.BChessBadges.clear('myBoard');
+  window.BChessPremove?.clear();
   currentMode = mode;
   setQuickMatchView(mode === 'quick' ? 'lobby' : '');
   selectedSquare = null;
@@ -2836,6 +2863,7 @@ function setGameMode(mode) {
 }
 
 function startNewBotGame() {
+  window.BChessPremove?.clear();
   if (window.bchessTournamentActive) return;
   game.reset();
   redoStack = [];
@@ -2936,6 +2964,7 @@ $(document).ready(function() {
     pieceTheme: PIECE_IMG_URL,
     onDragStart: onDragStart,
     onDrop: onDrop,
+    onMoveEnd: () => window.BChessPremove?.paint(),
     onSnapEnd: onSnapEnd
   };
 
@@ -3160,6 +3189,7 @@ $(document).ready(function() {
 
   // Reset Button
   document.getElementById('resetBtn').addEventListener('click', () => {
+    window.BChessPremove?.clear();
     if (quickBot) return;
     clearClickHighlights();
     selectedSquare = null;
@@ -4106,6 +4136,7 @@ function quickBotAfterMove() {
 }
 
 function finishQuickBotGame(result, winnerColor) {
+  window.BChessPremove?.clear();
   if (!quickBot || quickBot.over) return;
   const qb = quickBot;
   qb.over = true;

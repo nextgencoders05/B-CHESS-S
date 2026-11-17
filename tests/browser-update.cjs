@@ -34,12 +34,12 @@ window.sbCall=async(n,a)=>{if(n==='get_puzzle_stages')return {puzzles:Array.from
   const geometry=await page.evaluate(()=>{const b=document.getElementById('puzzleBoard').getBoundingClientRect();return {overflow:document.documentElement.scrollWidth>innerWidth,board:[b.width,b.height],cells:[...document.querySelectorAll('#puzzleBoard [data-square]')].map(e=>{const r=e.getBoundingClientRect();return [r.width,r.height]})}});
   assert(!geometry.overflow,JSON.stringify({width,geometry}));assert(Math.abs(geometry.board[0]-geometry.board[1])<3);assert(geometry.cells.every(([a,b])=>Math.abs(a-b)<1));
   await page.locator('#puzzleBoard [data-square="e2"]').click();await page.locator('#puzzleBoard [data-square="e4"]').click();await page.waitForFunction(()=>window.__completed.length===1);
-  await page.locator('[data-puzzle-id="p1"]').click();
+  await page.waitForSelector('#puzzleCompletionScreen:not([hidden])');
+  await page.locator('#puzzleNextBtn').click();
   const from=await page.locator('#puzzleBoard [data-square="e2"]').boundingBox(),to=await page.locator('#puzzleBoard [data-square="e4"]').boundingBox();
   await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();await page.mouse.move(to.x+to.width/2,to.y+to.height/2,{steps:10});await page.mouse.up();await page.waitForFunction(()=>window.__completed.length===2);
   await page.evaluate(()=>{window.__inbox={Alice:{id:'a',fromName:'Alice'}};window.__inboxCallback({val:()=>window.__inbox})});
   await page.waitForSelector('#friendRequestToast');const overlap=await page.evaluate(()=>{const t=document.getElementById('friendRequestToast').getBoundingClientRect(),b=document.getElementById('puzzleBoard').getBoundingClientRect();return t.bottom>b.top&&t.top<b.bottom});assert(!overlap);
-  await page.evaluate(()=>document.getElementById('puzzlesPanel').scrollIntoView());await page.screenshot({path:path.join('/workspace/scratch/8658d1e882fa','verified-puzzle-'+width+'.png'),fullPage:false});
-  assert.deepEqual(errors,[]);console.log('PASS Chromium '+width+'px: 100 stages, square board/cells, no horizontal overflow, real click and drag solution input, non-overlapping popup.');await context.close();
+  assert.deepEqual(errors,[]);console.log('PASS Chromium '+width+'px: 100 stages, square board/cells, no horizontal overflow, real click and drag solution input, completion screen and Next Puzzle transition, non-overlapping popup.');await context.close();
  }}finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1)});

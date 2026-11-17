@@ -32,7 +32,7 @@
     try{await rpc('admin_delete_puzzles',{p_ids:batch?null:ids,p_batch:batch});await adminList();if(state.active)await refreshActive();}catch(e){$('adminPuzzleMessage').textContent=e.message;}
   }
   async function refreshActive(){if(!state.active)return;const generation=state.generation;try{const r=await rpc('get_puzzle_stages',{});if(!state.active||generation!==state.generation)return;state.list=r.puzzles;state.completed=new Set(r.completed);
-    if(state.puzzle){const found=state.list.find(p=>p.id===state.puzzle.id);if(!found){state.generation++;state.puzzle=null;state.busy=false;hideCompletionScreen();state.board?.position('empty',false);window.BChessBadges?.clear('puzzleBoard');message('This puzzle was deleted. Choose an available stage.');}else state.puzzle.stage=found.stage;}
+    if(state.puzzle){const found=state.list.find(p=>p.id===state.puzzle.id);if(!found){state.generation++;state.puzzle=null;state.busy=false;hideCompletionScreen();hideWrongMoveScreen();state.board?.position('empty',false);window.BChessBadges?.clear('puzzleBoard');message('This puzzle was deleted. Choose an available stage.');}else state.puzzle.stage=found.stage;}
     renderStages();updateTurn();}catch(_){} }
 
   function strictPosition(fen) {
@@ -131,8 +131,7 @@
   function invalidate() {state.preview=null;$('puzzlePublishBtn').disabled=true;$('puzzleImportPreview').replaceChildren();}
   window.clearPuzzleAdmin = () => {invalidate();$('puzzleSource').value='';$('puzzleSolution').value='';$('puzzleFiles').value='';$('puzzleImportStatus').textContent='';};
   let journeySignature = '', lastDrop = 0, lastDropSquare = null, lastDropWasMove = false, dragFrom = null, justCompleted = null, inTouch = false, lastTouchEnd = 0, lastBoardTouchEnd = 0;
-  function selection(square) {
-    state.selected = square || null;
+  function highlightSquareAndMoves(square) {
     document.querySelectorAll('#puzzleBoard .puzzle-selected, #puzzleBoard .square-selected, #puzzleBoard .legal-dest-dot, #puzzleBoard .legal-dest-capture').forEach(el=>el.classList.remove('puzzle-selected','square-selected','legal-dest-dot','legal-dest-capture'));
     if(square && state.game) {
       const sqEl = document.querySelector('#puzzleBoard [data-square="'+square+'"]');
@@ -143,6 +142,10 @@
         if(dest) dest.classList.add(m.captured || state.game.get(m.to) ? 'legal-dest-capture' : 'legal-dest-dot');
       }
     }
+  }
+  function selection(square) {
+    state.selected = square || null;
+    highlightSquareAndMoves(state.selected);
   }
   function findNextPuzzle(completedPuzzle) {
     if (!state.list.length) return null;
@@ -156,9 +159,7 @@
     if (idx >= 0 && idx + 1 < state.list.length) return state.list[idx + 1];
     return null;
   }
-  function ensureCompletionOverlay() {
-    let overlay = $('puzzleCompletionScreen');
-    if (overlay) { bindCompletionButtons(); return overlay; }
+  function ensureStageWrap() {
     const boardEl = $('puzzleBoard');
     if (!boardEl) return null;
     let stageWrap = $('puzzleBoardStage');
@@ -169,40 +170,101 @@
       boardEl.parentNode.insertBefore(stageWrap, boardEl);
       stageWrap.appendChild(boardEl);
     }
-    overlay = document.createElement('div');
-    overlay.id = 'puzzleCompletionScreen';
-    overlay.className = 'puzzle-completion-overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'false');
-    overlay.setAttribute('aria-labelledby', 'puzzleCompleteTitle');
-    overlay.hidden = true;
-    overlay.innerHTML =
-      '<div class="puzzle-completion-card">' +
-        '<div class="puzzle-completion-icon" aria-hidden="true">' +
-          '<svg viewBox="0 0 52 52" class="puzzle-checkmark-svg">' +
-            '<circle class="puzzle-checkmark-circle" cx="26" cy="26" r="24" fill="none"></circle>' +
-            '<path class="puzzle-checkmark-check" fill="none" d="M14 27l8 8 16-16"></path>' +
-          '</svg>' +
-        '</div>' +
-        '<h3 id="puzzleCompleteTitle" class="puzzle-completion-title">Puzzle Completed!</h3>' +
-        '<p id="puzzleCompleteSub" class="puzzle-completion-sub">Great job! You solved this puzzle.</p>' +
-        '<div id="puzzleCompleteActions" class="puzzle-completion-actions">' +
-          '<button type="button" id="puzzleNextBtn" class="pill-btn highlight-btn puzzle-next-btn">Go to Next Puzzle</button>' +
-        '</div>' +
-        '<div id="puzzleAllCompletedBox" class="puzzle-all-completed-box" hidden>' +
-          '<p id="puzzleAllCompletedText" class="puzzle-all-completed-text">All Available Puzzles Completed</p>' +
-          '<button type="button" id="puzzleReturnListBtn" class="pill-btn highlight-btn puzzle-return-btn">Return to Puzzle List</button>' +
-        '</div>' +
-      '</div>';
-    stageWrap.appendChild(overlay);
+    return stageWrap;
+  }
+  function ensureCompletionOverlay() {
+    const stageWrap = ensureStageWrap();
+    let overlay = $('puzzleCompletionScreen');
+    if (!overlay && stageWrap) {
+      overlay = document.createElement('div');
+      overlay.id = 'puzzleCompletionScreen';
+      overlay.className = 'puzzle-completion-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'false');
+      overlay.setAttribute('aria-labelledby', 'puzzleCompleteTitle');
+      overlay.hidden = true;
+      overlay.innerHTML =
+        '<div class="puzzle-completion-card">' +
+          '<div class="puzzle-completion-icon" aria-hidden="true">' +
+            '<svg viewBox="0 0 52 52" class="puzzle-checkmark-svg">' +
+              '<circle class="puzzle-checkmark-circle" cx="26" cy="26" r="24" fill="none"></circle>' +
+              '<path class="puzzle-checkmark-check" fill="none" d="M14 27l8 8 16-16"></path>' +
+            '</svg>' +
+          '</div>' +
+          '<h3 id="puzzleCompleteTitle" class="puzzle-completion-title">Puzzle Completed!</h3>' +
+          '<p id="puzzleCompleteSub" class="puzzle-completion-sub">Great job! You solved this puzzle.</p>' +
+          '<div id="puzzleCompleteActions" class="puzzle-completion-actions">' +
+            '<button type="button" id="puzzleNextBtn" class="pill-btn highlight-btn puzzle-next-btn">Go to Next Puzzle</button>' +
+          '</div>' +
+          '<div id="puzzleAllCompletedBox" class="puzzle-all-completed-box" hidden>' +
+            '<p id="puzzleAllCompletedText" class="puzzle-all-completed-text">All Available Puzzles Completed</p>' +
+            '<button type="button" id="puzzleReturnListBtn" class="pill-btn highlight-btn puzzle-return-btn">Return to Puzzle List</button>' +
+          '</div>' +
+        '</div>';
+      stageWrap.appendChild(overlay);
+    }
+    ensureWrongMoveOverlay();
     bindCompletionButtons();
     return overlay;
+  }
+  function ensureWrongMoveOverlay() {
+    const stageWrap = ensureStageWrap();
+    let wrongOverlay = $('puzzleWrongMoveScreen');
+    if (!wrongOverlay && stageWrap) {
+      wrongOverlay = document.createElement('div');
+      wrongOverlay.id = 'puzzleWrongMoveScreen';
+      wrongOverlay.className = 'puzzle-completion-overlay puzzle-wrong-overlay';
+      wrongOverlay.setAttribute('role', 'dialog');
+      wrongOverlay.setAttribute('aria-modal', 'false');
+      wrongOverlay.setAttribute('aria-labelledby', 'puzzleWrongMoveTitle');
+      wrongOverlay.hidden = true;
+      wrongOverlay.innerHTML =
+        '<div class="puzzle-completion-card puzzle-wrong-card">' +
+          '<div class="puzzle-completion-icon puzzle-wrong-icon" aria-hidden="true">' +
+            '<svg viewBox="0 0 52 52" class="puzzle-checkmark-svg">' +
+              '<circle class="puzzle-wrong-circle" cx="26" cy="26" r="24" fill="none"></circle>' +
+              '<path class="puzzle-wrong-cross" fill="none" d="M17 17l18 18M35 17L17 35"></path>' +
+            '</svg>' +
+          '</div>' +
+          '<h3 id="puzzleWrongMoveTitle" class="puzzle-completion-title puzzle-wrong-title">Wrong Move!</h3>' +
+          '<p id="puzzleWrongMoveSub" class="puzzle-completion-sub">That move is not the expected solution. Try again!</p>' +
+          '<div class="puzzle-completion-actions">' +
+            '<button type="button" id="puzzleWrongRetryBtn" class="pill-btn highlight-btn puzzle-next-btn puzzle-wrong-retry-btn">Retry</button>' +
+          '</div>' +
+        '</div>';
+      stageWrap.appendChild(wrongOverlay);
+    }
+    return wrongOverlay;
   }
   function hideCompletionScreen() {
     const overlay = $('puzzleCompletionScreen');
     if (overlay) overlay.hidden = true;
   }
+  function hideWrongMoveScreen() {
+    const wrongOverlay = $('puzzleWrongMoveScreen');
+    if (wrongOverlay) wrongOverlay.hidden = true;
+  }
+  function showWrongMoveScreen() {
+    ensureCompletionOverlay();
+    hideCompletionScreen();
+    const wrongOverlay = ensureWrongMoveOverlay();
+    if (!wrongOverlay) return;
+    wrongOverlay.hidden = false;
+    requestAnimationFrame(() => {
+      if (!wrongOverlay.hidden) {
+        $('puzzleWrongRetryBtn')?.focus({ preventScroll: true });
+      }
+    });
+  }
+  function retryCurrentPuzzle() {
+    if (Date.now() - lastBoardTouchEnd < 400) return;
+    hideWrongMoveScreen();
+    if (state.puzzle) {
+      start(state.puzzle, true);
+    }
+  }
   function showCompletionScreen(completedPuzzle) {
+    hideWrongMoveScreen();
     const overlay = ensureCompletionOverlay();
     if (!overlay) return;
     const nextPuzzle = findNextPuzzle(completedPuzzle);
@@ -263,10 +325,17 @@
       overlay.dataset.boundTouch = '1';
       overlay.addEventListener('touchstart', () => { lastBoardTouchEnd = 0; }, { passive: true });
     }
+    const wrongOverlay = $('puzzleWrongMoveScreen');
+    if (wrongOverlay && !wrongOverlay.dataset.boundTouch) {
+      wrongOverlay.dataset.boundTouch = '1';
+      wrongOverlay.addEventListener('touchstart', () => { lastBoardTouchEnd = 0; }, { passive: true });
+    }
     const nextBtn = $('puzzleNextBtn');
     if (nextBtn) nextBtn.onclick = goToNextPuzzle;
     const returnBtn = $('puzzleReturnListBtn');
     if (returnBtn) returnBtn.onclick = returnToPuzzleList;
+    const wrongRetryBtn = $('puzzleWrongRetryBtn');
+    if (wrongRetryBtn) wrongRetryBtn.onclick = retryCurrentPuzzle;
   }
   function currentStage() { return state.list.find(p=>!state.completed.has(p.id)) || state.list[state.list.length-1]; }
   function focusCurrent() {
@@ -317,6 +386,7 @@
     const key='bChessAttempt:'+currentUserId+':'+puzzle.id;
     state.attempt=!newAttempt&&sessionStorage.getItem(key)||crypto.randomUUID();sessionStorage.setItem(key,state.attempt);
     hideCompletionScreen();
+    hideWrongMoveScreen();
     selection(null);clearHint();window.BChessBadges?.clear('puzzleBoard');
     justCompleted=null;dragFrom=null;lastDrop=0;lastDropSquare=null;lastDropWasMove=false;inTouch=false;
     state.generation++; state.puzzle=puzzle; state.game=new Chess(puzzle.fen);state.index=0;state.moves=[];state.busy=false;state.selected=null;
@@ -324,14 +394,16 @@
       onDragStart:(source,piece)=>{
         if(!inTouch&&Date.now()-lastTouchEnd<450)return false;
         if(state.busy||!state.active||!state.puzzle||state.index>=state.puzzle.solution.length||piece[0]!==state.game.turn())return false;
+        hideWrongMoveScreen();
         dragFrom=source;
+        if(state.selected!==source)highlightSquareAndMoves(source);
         return true;
       },
       onDrop:(from,to)=>{
         dragFrom=null;
         if(inTouch){inTouch=false;lastTouchEnd=Date.now();lastBoardTouchEnd=lastTouchEnd;}
         if(!state.active||state.busy||!state.puzzle)return 'snapback';
-        if(!to||to==='offboard')return 'snapback';
+        if(!to||to==='offboard'){selection(state.selected);return 'snapback';}
         lastDrop=Date.now();
         lastDropSquare=to;
         if(from===to){
@@ -356,6 +428,7 @@
   }
   async function attempt(from,to,fromDrag=false) {
     if(state.busy||!state.active||!state.puzzle||state.index>=state.puzzle.solution.length) return;
+    hideWrongMoveScreen();
     const generation=state.generation, p=state.puzzle, chess=state.game;
     let promotion;
     if(chess.get(from)?.type==='p' && /[18]$/.test(to)) {
@@ -377,7 +450,13 @@
     clearHint();
     const afterFen=chess.fen();
     const uci=move.from+move.to+(move.promotion||'');
-    if(uci!==p.solution[state.index]) {chess.undo();state.board.position(chess.fen(),false);message('Not the intended solution — try again.');return;}
+    if(uci!==p.solution[state.index]) {
+      chess.undo();
+      state.board.position(chess.fen(),false);
+      message('Wrong Move! — Not the intended solution, try again.');
+      showWrongMoveScreen();
+      return;
+    }
     state.moves.push(uci);state.index++;state.busy=true;state.board.position(chess.fen(),!fromDrag);playSound('move');
     window.BChessBadges?.inspect('puzzleBoard',beforeFen,move,afterFen,()=>state.active&&state.generation===generation&&state.game.fen()===afterFen);
     if(state.index<p.solution.length) {
@@ -405,6 +484,7 @@
     state.active=true;const generation=++state.generation;
     state.list=[];state.completed.clear();state.puzzle=null;state.busy=false;
     hideCompletionScreen();
+    hideWrongMoveScreen();
     journeySignature='';$('puzzleStages').replaceChildren();if(state.board)state.board.position('empty',false);
     document.body.classList.add('puzzle-mode');$('puzzlesPanel').hidden=false;
     document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));$('modePuzzlesBtn').classList.add('active');
@@ -416,12 +496,13 @@
       if(state.list.length){start(state.list.find(p=>!state.completed.has(p.id))||state.list[0]);focusCurrent();}else message('No published puzzles yet.');
     }catch(e){if(state.active)message(e.message);}
   }
-  window.closePuzzleMode=()=>{hideCompletionScreen();selection(null);clearHint();window.BChessBadges?.clear('puzzleBoard');state.active=false;state.generation++;document.body.classList.remove('puzzle-mode');$('puzzlesPanel').hidden=true;$('modePuzzlesBtn').classList.remove('active');};
+  window.closePuzzleMode=()=>{hideCompletionScreen();hideWrongMoveScreen();selection(null);clearHint();window.BChessBadges?.clear('puzzleBoard');state.active=false;state.generation++;document.body.classList.remove('puzzle-mode');$('puzzlesPanel').hidden=true;$('modePuzzlesBtn').classList.remove('active');};
   function handleSquareInput(square) {
     if(!square||!state.active||state.busy||!state.puzzle||dragFrom)return;
     const now=Date.now();
     if(lastDropWasMove&&now-lastDrop<400)return;
     if(!lastDropWasMove&&square===lastDropSquare&&now-lastDrop<400)return;
+    hideWrongMoveScreen();
     if(state.selected===square){selection(null);return;}
     if(state.game?.get(square)?.color===state.game.turn()){selection(square);return;}
     if(state.selected){const from=state.selected;selection(null);attempt(from,square,false);}
@@ -447,6 +528,7 @@
     };
     $('puzzleCurrentStage').onclick=focusCurrent;
     let lastTouch=0,touchStart=null;
+    $('puzzleBoard').addEventListener('contextmenu',e=>e.preventDefault());
     $('puzzleBoard').addEventListener('touchstart',e=>{
       inTouch=true;
       lastTouch=Date.now();

@@ -1,5 +1,5 @@
 /* BCHESS_BUILD_VERSION: 2026-11-07-supabase */
-const CACHE_NAME = 'b-chess-shell-v18-puzzle-update';
+const CACHE_NAME = 'b-chess-shell-v19-mobile-touch-puzzle-retry';
 const APP_SHELL = [
   './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',

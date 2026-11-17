@@ -2318,7 +2318,13 @@ function applyHumanMove(source, target, promotion = 'q') {
 }
 
 // Drag & Drop Handlers
+let inBoardTouch = false;
+let lastBoardTouchEnd = 0;
+let lastDropSquare = null;
+let lastDropWasMove = false;
+
 function onDragStart(source, piece) {
+  if (!inBoardTouch && Date.now() - lastBoardTouchEnd < 450) return false;
   if (window.BChessPremove?.waiting()) return window.BChessPremove.drag(source, piece);
   if (isWaitingForOpponent) return false;
   if (currentMode === 'quick' || pendingOnlineMove) return false;
@@ -2343,16 +2349,36 @@ function onDragStart(source, piece) {
   }
 
   dragActive = true;
-  // Let the dragged piece render first; highlight legal squares on the next frame.
-  requestAnimationFrame(() => { if (dragActive) showLegalDestinations(source); });
+  if (selectedSquare !== source) {
+    showLegalDestinations(source);
+  }
+  return true;
 }
 
 function onDrop(source, target) {
   dragActive = false;
+  if (inBoardTouch) {
+    inBoardTouch = false;
+    lastBoardTouchEnd = Date.now();
+  }
+  if (window.BChessPremove?.drop(source, target)) {
+    lastDropTime = Date.now();
+    lastDropSquare = target;
+    lastDropWasMove = source !== target;
+    return 'snapback';
+  }
+
+  if (!target || target === 'offboard') {
+    if (selectedSquare) showLegalDestinations(selectedSquare);
+    else clearClickHighlights();
+    return 'snapback';
+  }
+
   lastDropTime = Date.now();
-  if (window.BChessPremove?.drop(source, target)) return 'snapback';
+  lastDropSquare = target;
 
   if (source === target) {
+    lastDropWasMove = false;
     if (selectedSquare === source) {
       clearClickHighlights();
       selectedSquare = null;
@@ -2363,6 +2389,17 @@ function onDrop(source, target) {
     return 'snapback';
   }
 
+  const targetPiece = game.get(target);
+  if (targetPiece && targetPiece.color === game.turn() &&
+      (currentMode !== 'bot' || targetPiece.color === playerColor) &&
+      !(currentMode === 'friend' && currentRoomCode && targetPiece.color !== myOnlineColor)) {
+    lastDropWasMove = false;
+    selectedSquare = target;
+    showLegalDestinations(target);
+    return 'snapback';
+  }
+
+  lastDropWasMove = true;
   clearClickHighlights();
   selectedSquare = null;
 
@@ -2376,6 +2413,7 @@ function onDrop(source, target) {
 
 function onSnapEnd() {
   board.position(pendingOnlineMove?.previewFen || game.fen());
+  if (selectedSquare) showLegalDestinations(selectedSquare);
   window.BChessPremove?.paint();
 }
 
@@ -2965,30 +3003,68 @@ $(document).ready(function() {
     onDragStart: onDragStart,
     onDrop: onDrop,
     onMoveEnd: () => window.BChessPremove?.paint(),
+    onSnapbackEnd: () => {
+      if (selectedSquare) showLegalDestinations(selectedSquare);
+      window.BChessPremove?.paint();
+    },
     onSnapEnd: onSnapEnd
   };
 
   board = Chessboard('myBoard', config);
 
   let lastTouchTime = 0;
-  $('#myBoard').on('touchstart', '.square-55d63', function() {
-    lastTouchTime = Date.now();
-  });
+  let touchStartInfo = null;
+  const myBoardEl = document.getElementById('myBoard');
+  if (myBoardEl) {
+    myBoardEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+    myBoardEl.addEventListener('touchstart', (e) => {
+      inBoardTouch = true;
+      lastTouchTime = Date.now();
+      const t = e.changedTouches && e.changedTouches[0];
+      const sq = e.target.closest && e.target.closest('[data-square]')?.getAttribute('data-square');
+      touchStartInfo = t && sq ? { x: t.clientX, y: t.clientY, square: sq } : null;
+    }, { capture: true, passive: true });
+    myBoardEl.addEventListener('touchend', (e) => {
+      lastTouchTime = Date.now();
+      lastBoardTouchEnd = lastTouchTime;
+      const t = e.changedTouches && e.changedTouches[0];
+      if (touchStartInfo && t && Math.hypot(t.clientX - touchStartInfo.x, t.clientY - touchStartInfo.y) > 24) {
+        touchStartInfo = null;
+        setTimeout(() => { inBoardTouch = false; }, 0);
+        return;
+      }
+      const hit = t && document.elementFromPoint ? document.elementFromPoint(t.clientX, t.clientY) : e.target;
+      const square = (hit?.closest?.('[data-square]') || e.target.closest?.('[data-square]'))?.getAttribute('data-square') || touchStartInfo?.square;
+      touchStartInfo = null;
+      if (!dragActive && square) {
+        const now = Date.now();
+        if (!(lastDropWasMove && now - lastDropTime < 400) &&
+            !(!lastDropWasMove && square === lastDropSquare && now - lastDropTime < 400)) {
+          handleSquareClick(square);
+        }
+      }
+      setTimeout(() => { inBoardTouch = false; }, 0);
+    }, { passive: true });
+  }
 
-  $('#myBoard').on('click touchend', '.square-55d63', function(e) {
+  $('#myBoard').on('click', '.square-55d63', function(e) {
     if (dragActive) return;
-    if (Date.now() - lastDropTime < 400) return;
-    if (e.type === 'click' && Date.now() - lastTouchTime < 450) {
-      return;
-    }
+    const now = Date.now();
+    if (now - lastTouchTime < 450 || now - lastBoardTouchEnd < 450) return;
     const square = $(this).attr('data-square');
-    if (square) {
-      handleSquareClick(square);
-    }
+    if (!square) return;
+    if (lastDropWasMove && now - lastDropTime < 400) return;
+    if (!lastDropWasMove && square === lastDropSquare && now - lastDropTime < 400) return;
+    handleSquareClick(square);
   });
 
   $(window).resize(() => {
     board.resize();
+    if (selectedSquare) {
+      showLegalDestinations(selectedSquare);
+    }
     if (currentBestMoveUci && currentMode === 'analysis') {
       drawBestMoveArrow(currentBestMoveUci);
     }

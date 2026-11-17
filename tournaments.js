@@ -1,15 +1,25 @@
 (function(){
  'use strict';const $=id=>document.getElementById(id),rpc=(n,a={})=>sbCall(n,a),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const st={active:false,id:null,data:null,board:null,game:null,model:null,selected:null,busy:false,polling:false,generation:0,offset:0,list:[],admin:[]};
+ const st={active:false,id:null,data:null,board:null,game:null,model:null,selected:null,busy:false,polling:false,generation:0,offset:0,list:[],admin:[],inTouch:false,lastTouchEnd:0,lastDrop:0,lastDropSquare:null,lastDropWasMove:false,dragFrom:null};
  const date=value=>new Date(value).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'})+' IST';
  const tc=t=>(t.base_seconds/60)+'+'+t.increment;
  function tell(text){$('tourMessage').textContent=text;}
  function allowed(){return !currentRoomCode&&!isOnlineMatchActive&&!(quickBot&&!quickBot.over);}
+ function highlightTour(square){
+  document.querySelectorAll('#tournamentBoard .square-selected, #tournamentBoard .legal-dest-dot, #tournamentBoard .legal-dest-capture').forEach(el=>el.classList.remove('square-selected','legal-dest-dot','legal-dest-capture'));
+  if(square&&st.model){
+   document.querySelector('#tournamentBoard [data-square="'+square+'"]')?.classList.add('square-selected');
+   for(const m of st.model.moves({square,verbose:true})){
+    document.querySelector('#tournamentBoard [data-square="'+m.to+'"]')?.classList.add(m.captured||st.model.get(m.to)?'legal-dest-capture':'legal-dest-dot');
+   }
+  }
+ }
+ function selectTour(square){st.selected=square||null;highlightTour(st.selected);}
  async function open(){if(!allowed())return alert('Finish your current match first.');if(!currentUserId)return triggerGoogleLogin();if(!requireTermsAccepted())return;
   if(!st.active){setGameMode('quick');qmCancelActiveSearch();window.closePuzzleMode?.();st.active=true;st.generation++;document.body.classList.add('tournament-mode');$('tournamentPanel').hidden=false;document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));$('modeTournamentBtn').classList.add('active');}
   await list();if(st.id)await view();
  }
- window.closeTournamentMode=()=>{if(window.bchessTournamentActive)return;st.active=false;st.generation++;$('tournamentPanel').hidden=true;document.body.classList.remove('tournament-mode');$('modeTournamentBtn').classList.remove('active');};
+ window.closeTournamentMode=()=>{if(window.bchessTournamentActive)return;selectTour(null);st.active=false;st.generation++;$('tournamentPanel').hidden=true;document.body.classList.remove('tournament-mode');$('modeTournamentBtn').classList.remove('active');};
  async function list(){try{st.list=await rpc('tournament_list');if(!st.id||!st.list.some(t=>t.id===st.id))st.id=st.list.find(t=>t.status==='live')?.id||st.list[0]?.id;
   $('tourList').innerHTML=st.list.length?st.list.filter(t=>t.status!=='draft').map(t=>`<article class="tour-card"><strong>${esc(t.name)}</strong><p>${esc(t.category)} ${tc(t)} • ${esc(t.status)} • ${t.players} players</p><p>${esc(date(t.starts_at))}</p><button class="pill-btn" data-tour="${t.id}">View tournament</button></article>`).join(''):'No published tournaments yet.';
   $('tourList').querySelectorAll('[data-tour]').forEach(b=>b.onclick=async()=>{if(window.bchessTournamentActive&&st.id!==b.dataset.tour)return tell('Finish your active tournament first.');st.id=b.dataset.tour;st.generation++;await view();});
@@ -31,8 +41,12 @@
   }catch(e){tell(e.message);}finally{st.polling=false;}
  }
  function renderGame(g){const changed=!st.game||st.game.id!==g.id||st.game.version!==g.version;st.game=g;st.model=new Chess(g.fen);$('tourGamePanel').hidden=false;
-  if(!st.board)st.board=Chessboard('tournamentBoard',{draggable:true,position:g.fen,pieceTheme:PIECE_IMG_URL,onDragStart:(from,piece)=>canMove()&&piece[0]===st.model.turn(),onDrop:(from,to)=>{move(from,to);return 'snapback';},onSnapEnd:()=>st.board.position(st.game.fen)});
-  if(changed){st.selected=null;st.board.orientation(g.white_id===currentUserId?'white':'black');st.board.position(g.fen,false);}st.board.resize();
+  if(!st.board)st.board=Chessboard('tournamentBoard',{draggable:true,position:g.fen,pieceTheme:PIECE_IMG_URL,
+   onDragStart:(from,piece)=>{if(!st.inTouch&&Date.now()-st.lastTouchEnd<450)return false;if(!canMove()||piece[0]!==st.model.turn())return false;st.dragFrom=from;if(st.selected!==from)highlightTour(from);return true;},
+   onDrop:(from,to)=>{st.dragFrom=null;if(st.inTouch){st.inTouch=false;st.lastTouchEnd=Date.now();}if(!canMove()||!to||to==='offboard'){selectTour(st.selected);return 'snapback';}st.lastDrop=Date.now();st.lastDropSquare=to;if(from===to){st.lastDropWasMove=false;selectTour(st.selected===from?null:from);return 'snapback';}if(st.model.get(to)?.color===st.model.turn()){st.lastDropWasMove=false;selectTour(to);return 'snapback';}st.lastDropWasMove=true;selectTour(null);move(from,to);return 'snapback';},
+   onSnapbackEnd:()=>{if(st.game)st.board.position(st.game.fen,false);selectTour(st.selected);},
+   onSnapEnd:()=>{if(st.game)st.board.position(st.game.fen,false);selectTour(st.selected);}});
+  if(changed){selectTour(null);st.board.orientation(g.white_id===currentUserId?'white':'black');st.board.position(g.fen,false);}st.board.resize();selectTour(st.selected);
   $('tourGameTitle').textContent='Round '+g.round+' — You play '+(g.white_id===currentUserId?'White':'Black');
   $('tourGameStatus').textContent=g.status!=='active'?'Match finished: '+g.result:g.clock_at?(canMove()?'Your turn':'Opponent to move'):'Waiting for both players to connect…';
   $('tourMoves').textContent=g.moves.join(' ');$('tourResign').disabled=g.status!=='active';$('tourDraw').disabled=g.status!=='active';$('tourAcceptDraw').hidden=!(g.status==='active'&&g.draw_offer&&g.draw_offer!==currentUserId);clocks();
@@ -58,12 +72,25 @@
   if(config.registration_opens>=config.registration_closes||config.registration_closes>config.starts_at)throw new Error('Registration must open before it closes, and close no later than the start.');
   await rpc('tournament_admin_save',{p_id:$('adminTourId').value||null,p_config:config});resetForm();$('adminTourStatus').textContent='Tournament saved.';await adminRefresh();
  }catch(e){$('adminTourStatus').textContent=e.message;}finally{button.disabled=false;}}
+ function handleTourSquare(square){
+  if(!square||!canMove()||st.dragFrom)return;
+  const now=Date.now();
+  if(st.lastDropWasMove&&now-st.lastDrop<400)return;
+  if(!st.lastDropWasMove&&square===st.lastDropSquare&&now-st.lastDrop<400)return;
+  if(st.selected===square){selectTour(null);return;}
+  if(st.model.get(square)?.color===st.model.turn()){selectTour(square);return;}
+  if(st.selected){const from=st.selected;selectTour(null);move(from,square);}
+ }
  function init(){
   $('modeTournamentBtn').onclick=open;$('adminTournamentForm').onsubmit=adminSave;$('adminTourNew').onclick=resetForm;$('adminTourRefresh').onclick=adminRefresh;
   document.addEventListener('bchess-admin-open',adminRefresh);document.addEventListener('bchess-admin-close',()=>{$('adminTourList').replaceChildren();st.admin=[];});
   $('tourResign').onclick=()=>action('resign');$('tourDraw').onclick=()=>action('offer_draw');$('tourAcceptDraw').onclick=()=>action('accept_draw');
-  $('tournamentBoard').addEventListener('click',e=>{if(!canMove())return;const square=e.target.closest('[data-square]')?.dataset.square;if(!square)return;if(st.selected){const from=st.selected;st.selected=null;move(from,square);}else if(st.model.get(square)?.color===st.model.turn())st.selected=square;});
-  setInterval(()=>{if(st.active)view();},5000);setInterval(clocks,250);window.addEventListener('resize',()=>{if(st.active)st.board?.resize();});
+  let lastTouch=0,touchStart=null;
+  $('tournamentBoard').addEventListener('contextmenu',e=>e.preventDefault());
+  $('tournamentBoard').addEventListener('touchstart',e=>{st.inTouch=true;lastTouch=Date.now();const t=e.changedTouches?.[0],sq=e.target.closest('[data-square]')?.dataset.square;touchStart=t&&sq?{x:t.clientX,y:t.clientY,square:sq}:null;},{capture:true,passive:true});
+  $('tournamentBoard').addEventListener('touchend',e=>{lastTouch=Date.now();st.lastTouchEnd=lastTouch;const t=e.changedTouches?.[0];if(touchStart&&t&&Math.hypot(t.clientX-touchStart.x,t.clientY-touchStart.y)>24){touchStart=null;setTimeout(()=>{st.inTouch=false;},0);return;}const hit=t&&document.elementFromPoint?document.elementFromPoint(t.clientX,t.clientY):e.target;const sq=(hit?.closest?.('[data-square]')||e.target.closest?.('[data-square]'))?.dataset.square||touchStart?.square;touchStart=null;handleTourSquare(sq);setTimeout(()=>{st.inTouch=false;},0);},{passive:true});
+  $('tournamentBoard').addEventListener('click',e=>{if(Date.now()-lastTouch<450||Date.now()-st.lastTouchEnd<450)return;handleTourSquare(e.target.closest('[data-square]')?.dataset.square);});
+  setInterval(()=>{if(st.active)view();},5000);setInterval(clocks,250);window.addEventListener('resize',()=>{if(st.active&&st.board){st.board.resize();selectTour(st.selected);}});
   auth.onAuthStateChanged(user=>{if(!user){window.bchessTournamentActive=false;window.closeTournamentMode();st.game=null;st.id=null;}});
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();

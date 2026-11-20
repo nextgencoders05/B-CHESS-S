@@ -2217,7 +2217,7 @@ function analyzePosition() {
 function requestBotMove() {
   if (game.game_over() || (quickBot && quickBot.over)) return;
   if (!stockfish || !engineReady) {
-    if (quickBot) playRandomQuickBotMove();
+    if (quickBot || window.VC?.active) playRandomQuickBotMove();
     return;
   }
   isBotThinking = true;
@@ -2513,6 +2513,7 @@ function showKingStateEffects() {
 }
 
 function handleMoveEffects(move) {
+  window.VC?.sound(move);
   if (game.in_checkmate()) {
     playSound('checkmate');
   } else if (game.in_check()) {
@@ -2757,6 +2758,7 @@ function checkBotTrigger() {
 }
 
 function updateUI() {
+  window.VC?.render();
   window.BChessPremove?.schedule();
   const currentOpening = detectOpening();
   document.getElementById('openingName').textContent = currentOpening;
@@ -2817,6 +2819,7 @@ function setGameMode(mode) {
   if (window.closePuzzleMode) window.closePuzzleMode();
   if (window.BChessBadges) window.BChessBadges.clear('myBoard');
   window.BChessPremove?.clear();
+  window.VC?.leave();
   currentMode = mode;
   setQuickMatchView(mode === 'quick' ? 'lobby' : '');
   selectedSquare = null;
@@ -2911,7 +2914,7 @@ function startNewBotGame() {
   clearClickHighlights();
   clearHighlights();
 
-  playerColor = document.getElementById('botSideSelect').value;
+  playerColor = window.VC?.active ? 'b' : document.getElementById('botSideSelect').value;
   botRating = parseInt(document.getElementById('botRatingSelect').value, 10);
 
   board.orientation(playerColor === 'w' ? 'white' : 'black');

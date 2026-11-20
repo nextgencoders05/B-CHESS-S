@@ -112,7 +112,7 @@
               <button id="modeBooksBtn" class="mode-btn">📚 Books</button>
             </div>
           </div>
-          <div id="botControls" class="bot-controls" style="display: none;">
+          <div id="botControls" class="bot-controls" style="display: none;"><button id="vcMusicButton" class="pill-btn" type="button">🔊 BGM</button>
             <div class="bot-setting">
               <label for="botRatingSelect">Bot Elo:</label>
               <select id="botRatingSelect" class="styled-select">
@@ -666,7 +666,8 @@
         <div class="admin-dash-user"><span id="adminDashPhone"></span><button type="button" id="adminLogoutBtn" class="pill-btn signout-pill">Logout</button></div>
       </header>
       <section class="admin-section">
-        <details id="vcAdmin"><summary>Vada Chennai Pieces</summary><label>Upload PNG <input type="file" accept="image/png" id="vcFile"></label><label>Character <select id="vcCharacter"></select></label><label>Role <select id="vcRole"></select></label><label>Starting slot <select id="vcSlot"></select></label><div id="vcPreview"></div><button id="vcSave" class="pill-btn">Save assignment</button><output id="vcStatus"></output></details></section><section class="admin-section"><h3>🧩 Puzzles</h3>
+        <details id="vcAdmin"><summary>Vada Chennai Pieces</summary><label>Side <select id="vcSide"><option value="b">Black — Human player</option><option value="w">White — Bot opponent</option></select></label><label>Upload PNG <input type="file" accept="image/png" id="vcFile"></label><label>Character <select id="vcCharacter"></select></label><label>Role <select id="vcRole"></select></label><label>Starting slot <select id="vcSlot"></select></label><div id="vcPreview"></div><button id="vcSave" class="pill-btn">Save assignment</button><output id="vcStatus" role="status"></output></details>
+        <details id="vcMusicAdmin"><summary>Vada Chennai BGM</summary><p>Current track: <strong id="vcTrackName">Loading…</strong></p><label>Upload MP3 <input id="vcTrackFile" type="file" accept=".mp3,audio/mpeg"></label><button id="vcListen" class="pill-btn">Preview</button><button id="vcPublish" class="pill-btn">Save BGM</button><output id="vcTrackStatus" role="status"></output></details></section><section class="admin-section"><h3>🧩 Puzzles</h3>
         <label for="puzzleFormat">Import format</label>
         <select id="puzzleFormat" class="styled-select"><option value="pgn">PGN</option><option value="fen">FEN + solutions</option></select>
         <p>PGN: one game per stage (main line is the solution). Separate games with a blank line before headers, or use a line containing ---.</p>

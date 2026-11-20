@@ -1,0 +1,11 @@
+begin;
+create table if not exists public.vada_pieces(slot text primary key check(slot ~ '^[a-h][78]$'), character_id text not null, png text not null check(length(png)<4000000 and png like 'data:image/png;base64,%'));
+alter table public.vada_pieces enable row level security;
+revoke all on public.vada_pieces from public,anon,authenticated;
+grant select on public.vada_pieces to anon,authenticated;
+grant insert,update on public.vada_pieces to authenticated;
+drop policy if exists vc_read on public.vada_pieces;
+create policy vc_read on public.vada_pieces for select using(true);
+drop policy if exists vc_admin on public.vada_pieces;
+create policy vc_admin on public.vada_pieces for all to authenticated using(public.is_admin()) with check(public.is_admin());
+commit;

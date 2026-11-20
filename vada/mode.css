@@ -1,0 +1,12 @@
+body.vc-mode,body.vc-mode main,body.vc-mode aside,body.vc-mode .glass-panel,body.vc-mode #uxNav{background:linear-gradient(140deg,#401417,#151113 70%)!important;color:#f4dfb5!important;border-color:#916538!important}
+.vc-mode button{border-color:#926136!important;color:#ffe7be!important;background-color:#40191b!important}
+.vc-mode #myBoard .white-1e1d7,#vcPreview .light{background:#edd5ad!important}
+.vc-mode #myBoard .black-3c85d,#vcPreview .dark{background:#302c2a!important}
+.vc-mode #myBoard{outline:5px ridge #ab733e}
+.vc-mode #botSideSelect{display:none}
+#vcIntro{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:radial-gradient(ellipse at center,#661b21,#110d0e 70%);color:#f5d39a;font:600 clamp(1.3rem,4vw,3rem) Georgia;animation:vcFade 1s ease-out}
+@keyframes vcFade{from{opacity:.35;letter-spacing:.08em}}
+@media(prefers-reduced-motion:reduce){#vcIntro{animation:none}}
+#vcPreview{display:grid;grid-template-columns:repeat(8,1fr);max-width:320px;margin:12px 0}
+#vcPreview span{aspect-ratio:1;display:grid;place-items:center}#vcPreview img{width:95%;height:95%;object-fit:contain}
+#vcAdmin label{display:block;margin:.6em 0}

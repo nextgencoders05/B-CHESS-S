@@ -666,7 +666,7 @@
         <div class="admin-dash-user"><span id="adminDashPhone"></span><button type="button" id="adminLogoutBtn" class="pill-btn signout-pill">Logout</button></div>
       </header>
       <section class="admin-section">
-        <h3>🧩 Puzzles</h3>
+        <details id="vcAdmin"><summary>Vada Chennai Pieces</summary><label>Upload PNG <input type="file" accept="image/png" id="vcFile"></label><label>Character <select id="vcCharacter"></select></label><label>Role <select id="vcRole"></select></label><label>Starting slot <select id="vcSlot"></select></label><div id="vcPreview"></div><button id="vcSave" class="pill-btn">Save assignment</button><output id="vcStatus"></output></details></section><section class="admin-section"><h3>🧩 Puzzles</h3>
         <label for="puzzleFormat">Import format</label>
         <select id="puzzleFormat" class="styled-select"><option value="pgn">PGN</option><option value="fen">FEN + solutions</option></select>
         <p>PGN: one game per stage (main line is the solution). Separate games with a blank line before headers, or use a line containing ---.</p>
@@ -744,5 +744,5 @@
   <script src="connection-quality.js"></script>
   <script src="interaction-update.js"></script>
   <link rel="stylesheet" href="interaction-update.css" />
-</body>
+<link rel="stylesheet" href="vada/mode.css"><script src="vada/mode.js"></script></body>
 </html>

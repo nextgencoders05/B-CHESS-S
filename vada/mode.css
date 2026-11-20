@@ -10,3 +10,4 @@ body.vc-mode,body.vc-mode main,body.vc-mode aside,body.vc-mode .glass-panel,body
 #vcPreview{display:grid;grid-template-columns:repeat(8,1fr);max-width:320px;margin:12px 0}
 #vcPreview span{aspect-ratio:1;display:grid;place-items:center}#vcPreview img{width:95%;height:95%;object-fit:contain}
 #vcAdmin label{display:block;margin:.6em 0}
+body:not(.vc-mode) #vcMusicButton{display:none!important}

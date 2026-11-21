@@ -81,8 +81,8 @@
     return ($('vcSlot').value==='All slots'?roleSlots():[$('vcSlot').value]).map(slot=>({slot,character_id:id,png}));}
   function preview(show=true){const pos=initial(assignments);for(const r of show===false?[]:draft())pos[r.slot]=r;
     const chess=new Chess(),cells=[];for(let rank=1;rank<=8;rank++)for(const f of 'hgfedcba'){const s=f+rank,p=chess.get(s),cell=document.createElement('span');cell.className=(f.charCodeAt(0)+rank)%2?'light':'dark';cell.title=s;if(p){const img=new Image();img.src=pos[s]?.png||'pieces/'+p.color+p.type+'.png';cell.append(img);}cells.push(cell);}$('vcPreview').replaceChildren(...cells);}
-  $('vcSide').onchange=$('vcRole').onchange=slots;$('vcCharacter').onchange=()=>{clearFile();preview();};$('vcSlot').onchange=preview;slots();
-  $('vcAdmin').ontoggle=async()=>{if($('vcAdmin').open)try{assignments=await load();preview(false);}catch(e){$('vcStatus').textContent=e.message;}};
+  $('vcSide').onchange=$('vcRole').onchange=slots;$('vcCharacter').onchange=preview;$('vcSlot').onchange=preview;slots();
+  $('vcAdmin').ontoggle=async()=>{if($('vcAdmin').open)try{assignments=await load();preview(pending.length>0);}catch(e){$('vcStatus').textContent=e.message;}};
   let version=0;
   function clearFile(){version++;pending='';$('vcFile').value='';$('vcSave').disabled=false;}
   function encode(blob){
@@ -92,8 +92,27 @@
     const ticket=++version,file=$('vcFile').files[0];pending='';$('vcSave').disabled=!!file;
     if(!file){preview();return;}
     try{
-      if(file.size>2900000||Array.from(new Uint8Array(await file.slice(0,8).arrayBuffer())).join(',')!=='137,80,78,71,13,10,26,10')throw Error('Choose a PNG under 2.9 MB.');
-      const png=await encode(file);
+      if(file.size>2900000)throw Error('Choose an image under 2.9 MB.');
+      const header=new Uint8Array(await file.slice(0,12).arrayBuffer());
+      let type;
+      if(header[0]===255 && header[1]===216 && header[2]===255) type='image/jpeg';
+      else if(header.slice(0,8).join(',')==='137,80,78,71,13,10,26,10') type='image/png';
+      else if(String.fromCharCode(...header.slice(0,4))==='RIFF' && String.fromCharCode(...header.slice(8,12))==='WEBP') type='image/webp';
+      else throw Error('Choose a PNG, JPG or WebP image.');
+      const image=new Image();
+      const url=URL.createObjectURL(file.slice(0,file.size,type));
+      let png;
+      try{
+        image.src=url;
+        await image.decode();
+        const scale=Math.min(1,384/Math.max(image.naturalWidth,image.naturalHeight));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+        canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(image,0,0,canvas.width,canvas.height);
+        png=canvas.toDataURL('image/png');
+      }finally{URL.revokeObjectURL(url);}
       if(ticket!==version)return;
       pending=png;preview();$('vcSave').disabled=false;$('vcStatus').textContent='Ready to save.';
     }catch(e){if(ticket===version)$('vcStatus').textContent=e.message;}

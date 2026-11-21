@@ -133,6 +133,7 @@
   function signInWithGoogle(provider) {
     return new Promise((resolve, reject) => {
       if (!configured) { reject(mkErr('auth/not-configured', 'Supabase is not configured yet. Fill in config.js.')); return; }
+      try { sessionStorage.setItem('bc-login-launch', String(Date.now())); } catch {}
       sb.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: redirectUrl(), queryParams: Object.assign({ prompt: 'select_account' }, (provider && provider._params) || {}) }

@@ -3,15 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a2328" />
+  <meta name="theme-color" content="#071a1e" />
   <meta name="description" content="B Chess Analyzer - analyze games, play chess and explore openings." />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icons/icon-192.png" type="image/png" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" href="icons/icon-32.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <title>B Chess Analyzer</title>
+  <style>
+  html.bc-launch::before,html.bc-launch::after{content:"";position:fixed;inset:0;z-index:2147483646;background:radial-gradient(ellipse at 45% 0%, #153639, var(--bg, #071a1e) 56%);animation:bc-out .35s ease 2s both;pointer-events:auto}
+  html.bc-launch::after{z-index:2147483647;background:transparent url(icons/icon-512.png) center/contain no-repeat;inset:0;margin:auto;width:min(46vmin,230px);height:min(46vmin,230px);animation:bc-zoom 2.35s ease-out both,bc-out .35s ease 2s both}
+  @keyframes bc-zoom{from{transform:scale(.8)}to{transform:scale(1.12)}}
+  @keyframes bc-out{from{opacity:1}to{opacity:0}}
+  @media(prefers-reduced-motion:reduce){html.bc-launch::before,html.bc-launch::after{animation:bc-out .15s ease .15s both}}
+  </style>
+  <script>
+  (() => {
+    const nav = performance.getEntriesByType('navigation')[0];
+    let loginReturn = false;
+    try {
+      const since = Number(sessionStorage.getItem('bc-login-launch'));
+      sessionStorage.removeItem('bc-login-launch');
+      loginReturn = Date.now() - since < 900000 && /[?#&](?:code|error|access_token|error_description)=/.test(location.search + location.hash);
+    } catch {}
+    if (nav?.type === 'back_forward' || loginReturn) return;
+    const root = document.documentElement;
+    root.classList.add('bc-launch');
+    const finish = () => root.classList.remove('bc-launch');
+    const image = new Image();
+    image.onerror = finish;
+    image.src = 'icons/icon-512.png';
+    setTimeout(finish, matchMedia('(prefers-reduced-motion: reduce)').matches ? 300 : 2350);
+    addEventListener('pagehide', finish, {once:true});
+  })();
+  </script>
   <!-- Chessboard.js CSS -->
   <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
   <link rel="stylesheet" href="style.css" />
@@ -25,7 +52,7 @@
       <img src="icons/icon-192.png" alt="" />
     </div>
     <div class="pwa-install-copy">
-      <strong>♟ Install B Chess</strong>
+      <strong>Install B Chess</strong>
       <span>Get the mobile app on your Home Screen — full screen, faster access and app-like experience.</span>
     </div>
     <button type="button" id="pwaInstallBtn" class="pill-btn highlight-btn pwa-install-action">Install</button>
@@ -37,7 +64,7 @@
     <!-- Top Header -->
     <header class="top-bar">
       <div class="brand">
-        <span class="pawn-icon" aria-hidden="true">♞</span>
+        <img class="pawn-icon" width="32" height="32" src="icons/icon-192.png" alt="" />
         <div>
           <h1>B Chess</h1>
         </div>
@@ -662,7 +689,7 @@
     <div class="admin-dashboard">
       <header class="admin-dash-head">
         <button id="adminDashClose" class="pill-btn" aria-label="Close Admin Dashboard">×</button>
-        <div><span class="admin-dash-kicker">♟ B Chess Analyzer</span><h2 id="adminDashTitle">Admin Dashboard</h2></div>
+        <div><span class="admin-dash-kicker"><img width="18" height="18" src="icons/icon-192.png" alt=""> B Chess Analyzer</span><h2 id="adminDashTitle">Admin Dashboard</h2></div>
         <div class="admin-dash-user"><span id="adminDashPhone"></span><button type="button" id="adminLogoutBtn" class="pill-btn signout-pill">Logout</button></div>
       </header>
       <section class="admin-section">
@@ -745,5 +772,5 @@
   <script src="connection-quality.js"></script>
   <script src="interaction-update.js"></script>
   <link rel="stylesheet" href="interaction-update.css" />
-<link rel="stylesheet" href="vada/mode.css"><script src="vada/voices.js"></script><script src="syndicate.js"></script><script src="vada/mode.js"></script></body>
+<link rel="stylesheet" href="vada/mode.css"><script src="vada/voices.js"></script><link rel="stylesheet" href="syndicate.css"><script src="syndicate.js"></script><script src="vada/mode.js"></script></body>
 </html>

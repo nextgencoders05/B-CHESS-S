@@ -1,0 +1,6 @@
+#syndicateDialog{box-sizing:border-box;overflow:auto}
+#syndicateDialog label{display:grid;gap:.3rem;margin:.6rem 0}
+#syndicateDialog :is(input,select){box-sizing:border-box;width:100%;min-height:40px;padding:.4rem;border:1px solid #897761;border-radius:5px;background:#282729;color:#fff}
+#syndicateDialog section img{height:38px;object-fit:contain}
+#syndicateDialog section span{margin-inline:.3rem;overflow-wrap:anywhere}
+#syndicateDialog .syn-captain{display:inline-block;border:1px solid #d4ad66;color:#ffe2ad;border-radius:1rem;padding:.12rem .55rem;font-size:.85em}

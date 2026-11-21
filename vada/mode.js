@@ -88,6 +88,44 @@
   function encode(blob){
     return new Promise((ok,no)=>{const reader=new FileReader();reader.onload=()=>ok(reader.result);reader.onerror=()=>no(Error('Could not read PNG'));reader.readAsDataURL(blob);});
   }
+  function preparePiece(data,width,height){
+    const count=width*height;
+    const visited=new Uint8Array(count),queue=new Int32Array(count);
+    let tail=0;
+    function light(i){
+      const p=i*4,lo=Math.min(data[p],data[p+1],data[p+2]);
+      return lo>=198 && Math.max(data[p],data[p+1],data[p+2])-lo<=21;
+    }
+    function seed(i){
+      if(!visited[i] && light(i)){visited[i]=1;queue[tail++]=i;}
+    }
+    let rim=0,clear=0;
+    for(let i=0;i<count;i++){
+      const x=i%width;
+      if(i>=width && i<count-width && x!==0 && x!==width-1)continue;
+      rim++;if(data[i*4+3]<245)clear++;
+      seed(i);
+    }
+    // Only remove a light matte when it dominates the perimeter.
+    if(clear===0 && tail>=rim*.65){
+      for(let head=0;head<tail;head++){
+        const i=queue[head],x=i%width;data[i*4+3]=0;
+        if(x>0)seed(i-1);
+        if(x+1<width)seed(i+1);
+        if(i>=width)seed(i-width);
+        if(i+width<count)seed(i+width);
+      }
+    }
+    let left=width,top=height,right=-1,bottom=-1;
+    for(let i=0;i<count;i++){
+      if(data[i*4+3]<12)continue;
+      const x=i%width,y=Math.floor(i/width);
+      left=Math.min(left,x);right=Math.max(right,x);
+      top=Math.min(top,y);bottom=Math.max(bottom,y);
+    }
+    if(right<left)throw Error('No visible piece found. Choose a cropped character image.');
+    return {left,top,width:right-left+1,height:bottom-top+1};
+  }
   $('vcFile').onchange=async()=>{
     const ticket=++version,file=$('vcFile').files[0];pending='';$('vcSave').disabled=!!file;
     if(!file){preview();return;}
@@ -111,7 +149,13 @@
         canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
         const ctx=canvas.getContext('2d');
         ctx.drawImage(image,0,0,canvas.width,canvas.height);
-        png=canvas.toDataURL('image/png');
+        const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const box=preparePiece(pixels.data,canvas.width,canvas.height);
+        ctx.putImageData(pixels,0,0);
+        const piece=document.createElement('canvas');
+        piece.width=box.width+4;piece.height=box.height+4;
+        piece.getContext('2d').drawImage(canvas,box.left,box.top,box.width,box.height,2,2,box.width,box.height);
+        png=piece.toDataURL('image/png');
       }finally{URL.revokeObjectURL(url);}
       if(ticket!==version)return;
       pending=png;preview();$('vcSave').disabled=false;$('vcStatus').textContent='Ready to save.';

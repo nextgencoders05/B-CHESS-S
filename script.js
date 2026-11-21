@@ -2190,7 +2190,7 @@ function showLegalDestinations(sourceSquare) {
   const legalMoves = game.moves({ square: sourceSquare, verbose: true });
   for (const m of legalMoves) {
     const $target = $(`#myBoard .square-${m.to}`);
-    if (m.captured || game.get(m.to)) {
+    if ((window.VC?.active ? game.get(m.to) : m.captured || game.get(m.to))) {
       $target.addClass('legal-dest-capture');
     } else {
       $target.addClass('legal-dest-dot');
@@ -2904,6 +2904,7 @@ function setGameMode(mode) {
 }
 
 function startNewBotGame() {
+  if(window.VC?.active)Voice.reset();
   window.BChessPremove?.clear();
   if (window.bchessTournamentActive) return;
   game.reset();

@@ -39,7 +39,7 @@
     nav.insertBefore(modes, btns[1]);
     var more = document.createElement('button'); more.className='ux-nav-item mobile-only'; more.id='mobileMoreBtn'; more.innerHTML=navigationIcon('<path d="M4 12h1m6 0h1m6 0h1" stroke-width="3"/>')+'<span>More</span>';more.setAttribute('aria-expanded','false');
     var panel=document.createElement('div');panel.id='mobileMorePanel';panel.hidden=true;
-    [{id:'modeQuickBtn',label:'Modes'},{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'},{id:'modeAnalyzeBtn',label:'Analyze'},{id:'modeHistoryBtn',label:'History'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
+    [{id:'openSyndicate',label:'Syndicate'},{id:'modeQuickBtn',label:'Modes'},{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'},{id:'modeAnalyzeBtn',label:'Analyze'},{id:'modeHistoryBtn',label:'History'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
     more.onclick=function(){panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));};nav.appendChild(more);nav.appendChild(panel);
     document.addEventListener('click',function(e){if(!nav.contains(e.target)){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
     document.body.appendChild(nav);

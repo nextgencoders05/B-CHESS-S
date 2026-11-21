@@ -4,24 +4,116 @@
   dialog.innerHTML='<button type="button" id="synClose" style="float:right" aria-label="Close Syndicate">×</button><h2>Syndicate</h2><section></section><p role="status"></p>';
   const panel=dialog.querySelector('section'),status=dialog.querySelector('[role=status]');
   let token=0;
-  function close(){token++;dialog.close();}
-  dialog.querySelector('#synClose').onclick=close;dialog.oncancel=()=>{token++;};
+  function leaveRoster(){dialog._stopRoster?.();dialog._stopRoster=null;dialog.classList.remove("sr-open");}
+  function close(){leaveRoster();token++;dialog.close();}
+  dialog.querySelector('#synClose').onclick=close;dialog.oncancel=()=>{leaveRoster();token++;};
   function button(label,fn){const b=document.createElement('button');b.className='pill-btn';b.textContent=label;b.onclick=async()=>{b.disabled=true;try{await fn();}catch(e){status.textContent=e.message;}finally{b.disabled=false;}};return b;}
   function node(tag,str){const el=document.createElement(tag);el.textContent=str;return el;}
   function emblem(source){const img=new Image();img.src=source||'pieces/wn.png';img.alt='';return img;}
   async function result(query){const {data,error}=await query;if(error)throw error;return data;}
   async function profile(club){
     const t=++token;status.textContent='Loading members…';const members=await result(sb.rpc('syndicate_members_public',{cid:club.id}));if(t!==token)return;
+    leaveRoster();
     const joined=members.some(m=>m.player===currentUserId);
     const action=button(joined?'Joined':'Join Syndicate',async()=>{await result(sb.rpc('syndicate_join',{cid:club.id}));await profile(club);});action.disabled=joined;
-    const detail=node('p','');panel.replaceChildren(button('Back to directory',directory),emblem(club.logo),node('h3',club.name),node('p',locationText(club)),node('p',memberCount(members.length)),action,node('h4','Members'));
-    for(const m of members){
-      const row=node('div','');
-      row.append(button(m.username,()=>{detail.textContent=m.username+' · '+m.matches+' completed matches';}));
-      if(club.captain===m.player){const badge=node('span','Captain');badge.className='syn-captain';row.append(badge);}
-      panel.append(row);
+    const root=node('div','');root.className='sr-layout';
+    function box(tag,cls,text=''){
+      const el=node(tag,text);el.className=cls;return el;
     }
-    panel.append(detail);status.textContent='';
+    const rail=box('aside','sr-rail'), roster=box('div','sr-roster');
+    const preview=box('article','sr-preview'),overview=box('article','sr-overview');
+    const back=button('Back to directory',directory);
+    const title=node('h3',club.name), place=locationText(club);
+    rail.append(emblem(club.logo),title);
+    if(place)rail.append(node('p',place));
+    rail.append(node('p',memberCount(members.length)));
+    const nav=box('nav','sr-nav');nav.setAttribute('aria-label','Syndicate profile');
+    function showOverview(active){
+      root.classList.toggle('overview',active);
+      root.classList.remove('inspecting');
+      overviewBtn.setAttribute('aria-pressed',String(active));
+      membersBtn.setAttribute('aria-pressed',String(!active));
+    }
+    const overviewBtn=button('Overview',()=>showOverview(true));
+    const membersBtn=button('Members',()=>showOverview(false));
+    nav.append(overviewBtn,membersBtn);rail.append(nav);
+    overview.append(node('h3','Overview'),node('p',club.name),node('p',place),node('p',memberCount(members.length)));
+    const toolbar=box('div','sr-tools');
+    const toggle=button('Details',()=>{
+      const expanded=root.classList.toggle('expanded');
+      toggle.textContent=expanded?'Done':'Details';
+      toggle.setAttribute('aria-expanded',String(expanded));
+    });
+    toggle.setAttribute('aria-expanded','false');
+    toolbar.append(node('h3','Members'),toggle);
+    const scroll=box('div','sr-scroll'),heading=box('div','sr-head');
+    heading.append(node('strong','Player'),box('strong','sr-stat','Completed matches'));
+    scroll.append(heading);roster.append(toolbar,scroll);
+    const photos=new Map(),rows=[];
+    function avatar(member){
+      const face=box('span','sr-avatar',(member.username||'P').charAt(0).toUpperCase());
+      function display(src){
+        if(!src)return;
+        const image=new Image();image.alt='';
+        image.onload=()=>face.replaceChildren(image);image.src=src;
+      }
+      function load(){
+        if(!photos.has(member.player)){
+          photos.set(member.player, Promise.resolve().then(async()=>{
+            const snap=await database.ref('users/'+member.player).once('value');
+            const u=snap.val()||{};return u.photoData||u.photo||u.photoURL;
+          }).catch(()=>null));
+        }
+        photos.get(member.player).then(display);
+      }
+      if(typeof IntersectionObserver==='function'){
+        // Load roster avatars only when their row is visible.
+        observer.observe(face);loaders.set(face,load);
+      }else load();
+      return face;
+    }
+    const loaders=new WeakMap();
+    const observer=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{
+      for(const entry of entries)if(entry.isIntersecting){
+        observer.unobserve(entry.target);loaders.get(entry.target)?.();
+      }
+    }):null;
+    dialog._stopRoster=()=>observer?.disconnect();
+    const captain=m=>m.player===club.captain;
+    function badge(){return box('span','syn-captain','Captain');}
+    let selected=-1;
+    function select(i,inspect){
+      if(selected>=0)rows[selected].setAttribute('aria-pressed','false');
+      selected=i;const m=members[i];rows[i].setAttribute('aria-pressed','true');
+      const previous=preview.querySelector('.sr-avatar');if(previous)observer?.unobserve(previous);
+      const returnBtn=button('Back to members',()=>{
+        root.classList.remove('inspecting');rows[selected].focus({preventScroll:true});
+      });
+      returnBtn.classList.add('sr-return');
+      preview.replaceChildren(returnBtn,avatar(m),node('h3',m.username));
+      if(captain(m))preview.append(badge());
+      preview.append(node('p',m.matches+' completed matches'));
+      if(typeof openPlayerProfile==='function')preview.append(button('Open chess profile',()=>{
+        close();openPlayerProfile(m.player);
+      }));
+      if(inspect&&matchMedia('(max-width: 720px)').matches){
+        root.classList.add('inspecting');returnBtn.focus({preventScroll:true});
+      }
+    }
+    members.forEach((m,i)=>{
+      const row=document.createElement('button');row.type='button';row.className='sr-row';
+      const identity=box('span','sr-identity');identity.append(avatar(m),node('strong',m.username));
+      if(captain(m))identity.append(badge());
+      row.append(identity,box('span','sr-stat',String(m.matches)));
+      row.setAttribute('aria-pressed','false');row.onclick=()=>select(i,true);
+      rows.push(row);scroll.append(row);
+    });
+    if(rows.length)select(0,false);else scroll.append(node('p','No members yet.'));
+    showOverview(false);
+    root.append(rail,roster,preview,overview);
+    const controls=box('div','sr-controls');controls.append(back,action);
+    panel.replaceChildren(controls,root);dialog.classList.add('sr-open');status.textContent='';
+
   }
   let geography;
   async function catalog(){
@@ -122,6 +214,7 @@
     status.textContent='';input.focus();
   }
   async function directory(){
+    leaveRoster();
     const t=++token;panel.replaceChildren();status.textContent='Loading Syndicates…';
     await catalog();if(t!==token)return;
     const filters=locationFields(false);let applied={};

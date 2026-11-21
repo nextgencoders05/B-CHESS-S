@@ -4,3 +4,45 @@
 #syndicateDialog section img{height:38px;object-fit:contain}
 #syndicateDialog section span{margin-inline:.3rem;overflow-wrap:anywhere}
 #syndicateDialog .syn-captain{display:inline-block;border:1px solid #d4ad66;color:#ffe2ad;border-radius:1rem;padding:.12rem .55rem;font-size:.85em}
+
+/* Keep the profile header and its Close control outside the scrolling roster. */
+#syndicateDialog.sr-open{
+ width:min(96vw,1380px);max-width:96vw;max-height:94dvh;margin:auto;
+ background:var(--bg,#071a1e);color:var(--text,#fff1d8);border-color:var(--line,#3c5555);
+ overflow:auto;padding:clamp(.75rem,2vw,1.5rem)
+}
+#syndicateDialog.sr-open h2,#syndicateDialog.sr-open h3{margin:0;overflow-wrap:anywhere}
+#syndicateDialog.sr-open #synClose{position:sticky;top:0;z-index:3;width:44px;height:44px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px}
+.sr-controls,.sr-tools,.sr-nav{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.sr-controls{padding:.3rem 0 .65rem}.sr-tools{justify-content:space-between}
+.sr-layout{display:grid;grid-template-columns:minmax(145px,.8fr) minmax(220px,2fr) minmax(165px,1fr);gap:.75rem;align-items:stretch}
+.sr-layout>*{box-sizing:border-box;min-width:0;padding:.85rem;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.sr-layout p{overflow-wrap:anywhere;margin:.5rem 0}
+#syndicateDialog .sr-rail>img{width:52px;height:52px;object-fit:contain}
+.sr-roster{display:flex;flex-direction:column;min-height:0}
+.sr-scroll{height:clamp(155px,52dvh,540px);overflow:auto;overscroll-behavior:contain;overflow-anchor:none}
+.sr-head,.sr-row{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;padding:.55rem;text-align:left}
+.sr-head{position:sticky;top:0;z-index:1;background:var(--panel-2);color:var(--muted);font-size:.85em}
+#syndicateDialog .sr-row{width:100%;min-height:46px;margin:0;box-sizing:border-box;background:transparent;color:inherit;border:1px solid transparent;border-bottom-color:var(--line);border-radius:4px}
+#syndicateDialog .sr-row[aria-pressed=true],.sr-nav [aria-pressed=true]{border:1px solid var(--gold);background:var(--panel-3)}
+.sr-identity{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+.sr-identity strong{min-width:0;overflow-wrap:anywhere}
+#syndicateDialog .sr-avatar{display:inline-grid;place-items:center;overflow:hidden;border-radius:50%;background:var(--panel-3);color:var(--gold);width:32px;height:32px;flex:none}
+#syndicateDialog .sr-avatar img{width:100%;height:100%;object-fit:cover}
+#syndicateDialog .sr-preview>.sr-avatar{width:76px;height:76px;font-size:2rem;margin:1rem 0}
+.sr-stat,.sr-overview,#syndicateDialog .sr-return{display:none}
+.sr-layout.expanded .sr-roster,.sr-layout.overview .sr-overview{grid-column:2/-1}
+.sr-layout.expanded .sr-preview,.sr-layout.overview :is(.sr-preview,.sr-roster){display:none}
+.sr-layout.expanded .sr-stat,.sr-layout.overview .sr-overview{display:block}
+.expanded :is(.sr-head,.sr-row){grid-template-columns:minmax(0,1fr) minmax(80px,.42fr)}
+@media(max-width:720px){
+ #syndicateDialog.sr-open{width:96vw;padding:.65rem}
+ .sr-layout{display:flex;flex-direction:column;gap:.45rem}
+ .sr-layout>*{padding:.65rem}
+ #syndicateDialog .sr-rail>img{float:left;width:40px;height:40px;margin:0 .65rem .3rem 0}
+ .sr-nav{clear:both}
+ .sr-scroll{height:clamp(140px,42dvh,420px)}
+ .sr-layout .sr-preview,.sr-tools button{display:none}
+ .sr-layout.inspecting .sr-preview,#syndicateDialog .sr-return{display:block}
+ .sr-layout.inspecting .sr-roster{display:none}
+}

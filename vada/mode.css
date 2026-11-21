@@ -11,3 +11,9 @@ body.vc-mode,body.vc-mode main,body.vc-mode aside,body.vc-mode .glass-panel,body
 #vcPreview span{aspect-ratio:1;display:grid;place-items:center}#vcPreview img{width:95%;height:95%;object-fit:contain}
 #vcAdmin label{display:block;margin:.6em 0}
 body:not(.vc-mode) #vcMusicButton{display:none!important}
+.vc-mode #myBoard .legal-dest-dot::before{background:#36d75d!important;box-shadow:0 0 0 2px #164624!important}
+.vc-mode #myBoard .legal-dest-capture::after{border:4px solid #36d75d!important;box-shadow:0 0 0 1px #154222!important;box-sizing:border-box}
+#voiceEditor label{display:block;margin:.6rem 0}#voiceEditor select,#voiceEditor input{max-width:100%}#voiceEditor audio{max-width:100%;height:34px}
+#vcCustomLabel[hidden]{display:none}
+#syndicateDialog{width:min(92vw,520px);max-height:85vh;background:#201f20;color:#fff1dc;border:1px solid #947452;border-radius:12px;padding:1.3rem}#syndicateDialog::backdrop{background:#0009}#syndicateDialog button{margin:.3rem}#syndicateDialog img{width:30px;vertical-align:middle}
+@media(min-width:701px){#uxNav #mobileMoreBtn{display:flex!important}#uxNav #mobileMorePanel:not([hidden]){display:flex!important;position:fixed;left:90px;bottom:24px;flex-direction:column;padding:12px;z-index:9999}}

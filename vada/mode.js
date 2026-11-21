@@ -11,10 +11,15 @@
     return Object.assign(pieces,rows);
   }
   function positions(history=game.history({verbose:true})) {
-    const pos=initial(roster);
+    const starting=initial(roster),pos={...starting};
     for(const m of history){
       const actor=pos[m.from]; delete pos[m.from]; delete pos[m.to];
-      if(actor) pos[m.to]=actor;
+      if(m.promotion){
+        const files={q:'d',r:'ah',b:'cf',n:'bg'}[m.promotion];
+        const rank=m.color==='b'?'8':'1';
+        const replacement=Array.from(files,f=>starting[f+rank]).find(Boolean);
+        if(replacement)pos[m.to]=replacement;
+      }else if(actor)pos[m.to]=actor;
       if(m.flags.includes('e')) delete pos[m.to[0]+m.from[1]];
       if(/[kq]/.test(m.flags)){
         const rank=m.color==='b'?'8':'1';
@@ -32,8 +37,9 @@
   }
   const valid=url=>/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(url)||/^vada\/[a-z-]+\.png$/.test(url);
   window.VC={
+    speakers:async()=>initial(await load()),
     active:false,
-    leave(){generation++;music.pause();music.removeAttribute('src');music.load();$('vcIntro')?.remove();this.active=false;document.body.classList.remove('vc-mode');css.textContent='';audio?.pause();},
+    leave(){generation++;music.pause();music.removeAttribute('src');music.load();$('vcIntro')?.remove();this.active=false;document.body.classList.remove('vc-mode');css.textContent='';Voice.stop();},
     render(){if(!this.active)return;
       const pos=positions();
       css.textContent=game.board().flat().map((piece,i)=>piece && ({...piece,square:"abcdefgh"[i%8]+(8-Math.floor(i/8))})).filter(Boolean).map(p=>{
@@ -42,34 +48,28 @@
         return '.vc-mode #myBoard .square-'+p.square+' img[data-piece]{content:url("'+src+'");object-fit:contain}';
       }).join('\n');
     },
-    sound(m){if(!this.active||!soundEnabled)return;
+    sound(m){if(!this.active)return;
       const history=game.history({verbose:true});
 
       const prior=positions(history.slice(0,-1));
       const actor=prior[m.from]?.character_id,victim=prior[m.flags.includes('e')?m.to[0]+m.from[1]:m.to]?.character_id;
-      const clips=[];
-      if(actor==='anbu'&&m.captured&&m.captured!=='p')clips.push(0);
       const fen=game.fen().split(' ');fen[1]=m.color;fen[3]='-';
       const targets=new Set(new Chess(fen.join(' ')).moves({square:m.to,verbose:true}).filter(x=>x.captured).map(x=>x.to));
       const fork=targets.size+(game.in_check()?1:0)>=2;
-      if((fork||['r','q'].includes(m.captured))&&actor==='chandra')clips.push(2);
-      if((fork||['r','q'].includes(m.captured))&&actor==='macha')clips.push(3);
-      if(actor==='padma'&&(fork||game.in_check()))clips.push(4);
-      if(m.color==='b'&&game.in_checkmate()&&Object.entries(positions()).some(([s,p])=>p.character_id==='rajan'&&game.get(s)?.type==='k'))clips.push(5);
-      if(m.color==='w'&&game.in_check()&&Object.entries(positions()).some(([s,p])=>p.character_id==='rajan'&&game.get(s)?.type==='k'))clips.push(6);
-      if(victim==='thambi')clips.push(7);
-      if(clips.length){audio?.pause();audio=new Audio('vada/'+clips[Math.floor(Math.random()*clips.length)]+'.mp3');audio.play().catch(()=>{});}
+      const king=Object.entries(positions()).find(([sq])=>game.get(sq)?.type==='k' && game.get(sq).color===(game.in_checkmate()?m.color:game.turn()));
+      Voice.move({actor,victim,m,fork,check:game.in_check(),mate:game.in_checkmate(),king:king?.[1].character_id},soundEnabled);
+
     }
   };
   document.addEventListener('click',async e=>{
-    if(e.target.closest('#soundToggleBtn')&&!soundEnabled)audio?.pause();
+    if(e.target.closest('#soundToggleBtn')&&!soundEnabled)Voice.stop();
     if(e.target.closest('#modeBooksBtn,#modePuzzlesBtn,#modeTournamentBtn,#modeHistoryBtn'))VC.leave();
     if(!e.target.closest('#vcEnter'))return;
     if(!currentUserId)return triggerGoogleLogin();
     if(!requireTermsAccepted()||isOnlineMatchActive||quickBot&&!quickBot.over||window.bchessTournamentActive)return;
     setGameMode('bot');const ticket=++generation;
     const intro=document.createElement('div');intro.id='vcIntro';intro.textContent='Entering Vada Chennai Mode…';document.body.append(intro);
-    const [rows,track]=await Promise.all([load().catch(()=>assignments),readTrack().catch(()=>defaultTrack),new Promise(r=>setTimeout(r,matchMedia('(prefers-reduced-motion:reduce)').matches?100:1200))]);
+    const [rows,track]=await Promise.all([load().catch(()=>assignments),readTrack().catch(()=>defaultTrack),Voice.load(),new Promise(r=>setTimeout(r,matchMedia('(prefers-reduced-motion:reduce)').matches?100:1200))]);
     if(ticket!==generation)return;
     intro.remove();roster=rows;VC.active=true;document.body.classList.add('vc-mode');startNewBotGame();music.src=track.url;playMusic();
   });
@@ -78,10 +78,10 @@
   function roleSlots(){return roles[$('vcRole').value].map(s=>$('vcSide').value==='b'?s:s[0]+(s[1]==='7'?'2':'1'));}
   function slots(){const a=roleSlots();options('vcSlot',a.length>1?[...a,'All slots']:a);preview();}
   function draft(){const id=$('vcCharacter').value, png=pending||(!['custom','padma'].includes(id)?'vada/'+id+'.png':'');
-    return ($('vcSlot').value==='All slots'?roleSlots():[$('vcSlot').value]).map(slot=>({slot,character_id:id,png}));}
+    return ($('vcSlot').value==='All slots'?roleSlots():[$('vcSlot').value]).map(slot=>({slot,character_id:id==='custom'&&$('vcCustomName').value.trim()?'custom:'+$('vcCustomName').value.trim().toLowerCase():id,png}));}
   function preview(show=true){const pos=initial(assignments);for(const r of show===false?[]:draft())pos[r.slot]=r;
     const chess=new Chess(),cells=[];for(let rank=1;rank<=8;rank++)for(const f of 'hgfedcba'){const s=f+rank,p=chess.get(s),cell=document.createElement('span');cell.className=(f.charCodeAt(0)+rank)%2?'light':'dark';cell.title=s;if(p){const img=new Image();img.src=pos[s]?.png||'pieces/'+p.color+p.type+'.png';cell.append(img);}cells.push(cell);}$('vcPreview').replaceChildren(...cells);}
-  $('vcSide').onchange=$('vcRole').onchange=slots;$('vcCharacter').onchange=preview;$('vcSlot').onchange=preview;slots();
+  $('vcSide').onchange=$('vcRole').onchange=slots;$('vcCharacter').onchange=()=>{$('vcCustomLabel').hidden=$('vcCharacter').value!=='custom';preview();};$('vcSlot').onchange=preview;slots();
   $('vcAdmin').ontoggle=async()=>{if($('vcAdmin').open)try{assignments=await load();preview(pending.length>0);}catch(e){$('vcStatus').textContent=e.message;}};
   let version=0;
   function clearFile(){version++;pending='';$('vcFile').value='';$('vcSave').disabled=false;}

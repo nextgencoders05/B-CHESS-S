@@ -96,7 +96,7 @@
       navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
         .then(reg => {
           // Pick up a new service worker version quickly after deployment.
-          if (reg.waiting) reg.waiting.postMessage({type: 'SKIP_WAITING'});
+          // A signed-in player chooses when to activate a waiting release.
           reg.update().catch(() => {});
         })
         .catch(err => console.warn('Service worker registration failed:', err));

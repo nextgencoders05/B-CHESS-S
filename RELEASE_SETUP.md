@@ -1,0 +1,5 @@
+1. Apply supabase/release_tools.sql in the existing Supabase project after the existing schema and before deploying the client. Older clients can still use the original heartbeat.
+2. Publish the complete project to the same HTTPS hosting path and Supabase project. Keep the existing Google redirect URLs.
+3. For each future release edit version and notes in release.js. Keep the existing single-line assignment and JSON format. Publish release.js with the matching application files.
+4. The original project serves shell code network-first under stable filenames. Later keeps the current open page and suppresses another prompt for that release in the same tab session. Navigation or refresh can load the latest code automatically. Guaranteed access to a declined build across reloads requires retaining versioned HTML and asset directories and routing each client to its selected version. Clients predating this feature need to load this deployment once.
+5. Live counts use the existing ten-second heartbeat. Hidden or idle tabs age out. Counts may lag by one polling interval.

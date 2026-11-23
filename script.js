@@ -3522,7 +3522,7 @@ function renderPlayerProfile(userId, u) {
   body.innerHTML = `
     <div class="pp-header">
       ${playerAvatarHtml(player, 'pp-avatar')}
-      <div class="pp-header-text"><h2>${textEsc(player.username)}</h2><span class="rating-badge-pill">${Number(u.rating || 800)} Elo</span></div>
+      <div class="pp-header-text"><h2 data-club-profile="${attrEsc(userId)}">${textEsc(player.username)}</h2><span class="rating-badge-pill">${Number(u.rating || 800)} Elo</span></div>
     </div>
     <div class="pp-stats">
       <div class="pp-stat"><strong>${total}</strong><span>Played</span></div>

@@ -130,7 +130,8 @@
     return u.toString();
   }
 
-  function signInWithGoogle(provider) {
+  async function signInWithGoogle(provider) {
+    if (window.checkClubHealth && !(await window.checkClubHealth())) throw mkErr("auth/network-request-failed", navigator.onLine ? "The server is temporarily unavailable. Please try again later." : "Your device is offline.");
     return new Promise((resolve, reject) => {
       if (!configured) { reject(mkErr('auth/not-configured', 'Supabase is not configured yet. Fill in config.js.')); return; }
       try { sessionStorage.setItem('bc-login-launch', String(Date.now())); } catch {}
@@ -550,7 +551,7 @@
     if (!currentUser || !configured) { setConnected(false); return; }
     const t0 = Date.now();
     try {
-      const r = await rpc('rtdb_session_beat', { p_session: SESSION });
+      const r = await rpc('club_beat', { p_session: SESSION, active: !document.hidden && Date.now() - (window.clubActivity || performance.timeOrigin) < 180000, in_game: !!window.clubPlaying?.() });
       const t1 = Date.now();
       const off = Math.round(Number(r && r.now) - (t0 + t1) / 2);
       if (Number.isFinite(off) && Math.abs(off - serverOffset) > 50) { serverOffset = off; emitInfo('.info/serverTimeOffset'); }

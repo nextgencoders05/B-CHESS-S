@@ -1,7 +1,8 @@
 /* BCHESS_BUILD_VERSION: 2026-11-07-supabase */
-const CACHE_NAME = 'b-chess-shell-v21-transparent-club-logo';
+importScripts('./release.js');
+const CACHE_NAME = 'b-chess-shell-' + self.BCHESS_RELEASE.version;
 const APP_SHELL = [
-  './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
+  './release.js', './club-tools.js', './club-tools.css', './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
   './manifest.webmanifest', './locations/catalog.json', './syndicate.js', './syndicate.css', './icons/icon-32.png', './icons/icon-180.png', './icons/mask-192.png', './icons/mask-512.png', './icons/icon-192.png', './icons/icon-512.png',
   './pieces/wb.png', './pieces/bp.png', './pieces/wk.png', './pieces/wq.png',
   './pieces/wp.png', './pieces/bn.png', './pieces/wn.png', './pieces/wr.png',
@@ -12,7 +13,7 @@ self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
 });
 self.addEventListener('activate', event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
@@ -27,6 +28,7 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.searchParams.has('releaseCheck')) return;
   const saveCopy = response => {
     if (response && response.ok) { const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(request, copy)); }
     return response;

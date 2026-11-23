@@ -1,0 +1,4 @@
+.club-dialog{position:fixed;inset:0;margin:auto;width:min(25rem,88vw);height:fit-content;box-sizing:border-box;padding:2rem;border:1px solid #ac9163;border-radius:14px;color:#fff4de;background:#202523}.club-dialog::backdrop{background:#0009}.club-dialog button{margin:.35rem}.club-close{position:absolute;right:.35rem;top:.2rem}
+.pp-header-text .club-gold{width:fit-content;color:#e8bd62;background:linear-gradient(105deg,#cc9445,#ffdf8b 34%,#fff2cb 47%,#dca94e 54%,#f8db91 80%);background-size:250% 100%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 1px 2px #865624);animation:clubshine 8s ease infinite}
+@keyframes clubshine{0%,74%{background-position:0%}95%,100%{background-position:100%}}
+@media(prefers-reduced-motion:reduce){.pp-header-text .club-gold{animation:none}}

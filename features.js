@@ -140,7 +140,7 @@
 
     el.querySelector('video')?.pause();
     el.innerHTML = `
-      ${selecting ? '<button id="vcEnter" class="pill-btn">Vada Chennai</button>' : ''}
+      ${selecting ? '<button id="vcEnter" type="button" class="pill-btn">Vada Chennai</button>' : ''}
       <div class="qm-head">
         <div><h3>⚡ Quick Match</h3><p>Pick a time control and play a random online opponent — no friends needed.</p></div>
       </div>

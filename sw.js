@@ -2,7 +2,7 @@
 importScripts('./release.js');
 const CACHE_NAME = 'b-chess-shell-' + self.BCHESS_RELEASE.version;
 const APP_SHELL = [
-  './release.js', './club-tools.js', './club-tools.css', './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
+  './release.js', './club-tools.js', './club-tools.css', './icons/vip-badge.png', './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
   './manifest.webmanifest', './locations/catalog.json', './syndicate.js', './syndicate.css', './icons/icon-32.png', './icons/icon-180.png', './icons/mask-192.png', './icons/mask-512.png', './icons/icon-192.png', './icons/icon-512.png',
   './pieces/wb.png', './pieces/bp.png', './pieces/wk.png', './pieces/wq.png',
   './pieces/wp.png', './pieces/bn.png', './pieces/wn.png', './pieces/wr.png',

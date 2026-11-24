@@ -1,4 +1,96 @@
 .club-dialog{position:fixed;inset:0;margin:auto;width:min(25rem,88vw);height:fit-content;box-sizing:border-box;padding:2rem;border:1px solid #ac9163;border-radius:14px;color:#fff4de;background:#202523}.club-dialog::backdrop{background:#0009}.club-dialog button{margin:.35rem}.club-close{position:absolute;right:.35rem;top:.2rem}
-.pp-header-text .club-gold{width:fit-content;color:#e8bd62;background:linear-gradient(105deg,#cc9445,#ffdf8b 34%,#fff2cb 47%,#dca94e 54%,#f8db91 80%);background-size:250% 100%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 1px 2px #865624);animation:clubshine 8s ease infinite}
-@keyframes clubshine{0%,74%{background-position:0%}95%,100%{background-position:100%}}
-@media(prefers-reduced-motion:reduce){.pp-header-text .club-gold{animation:none}}
+
+.club-vip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.club-vip .club-username {
+  color: #f1cc77;
+  background-image: linear-gradient(170deg, #fff2c9 10%, #f7cf75 40%, #c48737 58%, #ffdf91 82%, #eeb95c);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.club-vip-badge {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 54px;
+  aspect-ratio: 3;
+  overflow: hidden;
+  line-height: 0;
+}
+.club-vip-badge img { display: block; width: 100%; height: auto; }
+.club-vip-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 36%, #fff1c33d 49%, transparent 62%);
+  transform: translateX(-105%);
+  animation: club-badge-sweep 12s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes club-badge-sweep {
+  0%, 83% { transform: translateX(-105%); }
+  95%, 100% { transform: translateX(105%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .club-vip-badge::after { animation: none; transform: translateX(18%); opacity: .5; }
+}
+.pp-identity .club-vip-badge, #ownVipName .club-vip-badge { width: 72px; }
+#ownVipName[hidden] { display: none; }
+.pp-header-text { min-width: 0; overflow-wrap: anywhere; }
+.player-name.club-vip { overflow: visible !important; }
+.player-name.club-vip .club-username { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-name.club-vip .club-elo { flex: none; white-space: nowrap; }
+.club-elo::before { content: " • "; white-space: pre; }
+.captured-bar:has(.club-vip) :is(.player-dot, .chess-clock, .board-mic-btn) { flex-shrink: 0; }
+.captured-bar:has(.club-vip) .captured-pieces-list { min-width: 0; }
+
+#clubVipMembers { list-style: none; padding: 0; margin: 0; }
+#clubVipMembers li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
+#clubVipMembers .pill-btn { min-width: 36px; min-height: 36px; }
+
+#quickMatchControls #vcEnter {
+  color: #fff !important;
+  background: linear-gradient(135deg, #791d24, #4e1017) !important;
+  border-color: #a83e46 !important;
+}
+#quickMatchControls #vcEnter:hover { background: #8a232c !important; }
+
+@media (max-width: 700px) {
+  .top-bar:has(#playerSearchResults[style*="display: block"]) { position: relative; z-index: 95; }
+  #playerSearchResults { max-height: min(340px, var(--search-results-height, 45dvh)); overscroll-behavior: contain; }
+  #playerSearchResults .inspect-profile-btn { min-height: 44px; }
+  #playerSearchInput { font-size: 16px; }
+  .captured-bar:has(.club-vip) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 2px 5px;
+  }
+  .captured-bar:has(.club-vip) .player-tag { grid-column: 1 / 3; grid-row: 1; gap: 5px; }
+  .captured-bar:has(.club-vip) .captured-clock { grid-column: 3; grid-row: 1; margin-left: 0; }
+  .captured-bar:has(.club-vip) .captured-pieces-list { grid-column: 1 / 3; grid-row: 2; margin-left: 0; }
+  .captured-bar:has(.club-vip) .material-advantage { grid-column: 3; grid-row: 2; }
+  .captured-bar:has(.club-vip) :is(.captured-pieces-list, .material-advantage):empty { display: none; }
+}
+@media (max-width: 390px) {
+  .player-name.club-vip {
+    display: grid;
+    grid-template-columns: minmax(0, auto) auto;
+    gap: 0 4px;
+  }
+  .player-name.club-vip .club-elo { grid-column: 1 / -1; font-size: 11px; }
+  .player-name.club-vip .club-elo::before { content: none; }
+  .captured-bar:has(.club-vip) .board-mic-btn { padding-inline: 5px; }
+}
+
+#tourPlayerNames:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 14px;
+  overflow-wrap: anywhere;
+}

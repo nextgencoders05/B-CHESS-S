@@ -13,6 +13,7 @@ let currentUserName = "Player";
 let currentUserPhoto = "";
 let currentUserRating = 800;
 let currentRoomCode = null;
+let joiningFriendRoom = false;
 let pendingOnlineMove = null;
 let pendingClockStart = false;
 let myOnlineColor = 'w';
@@ -39,7 +40,7 @@ let friendResultData = null;
 let isWaitingForOpponent = false;
 let waitingChallengeTargetId = null;
 let selfCancellingChallenge = false;
-let boardPlayerInfo = null; // { w:{name,rating}, b:{name,rating} } while a match is on the board
+let boardPlayerInfo = null; // Player IDs, names and ratings by side.
 let challengeToastCode = null;
 let pendingChallengeDeepLink = null; // { code, action } from a tapped browser notification
 let serverTimeOffset = 0;
@@ -219,6 +220,11 @@ function updateProfileUI() {
   const avatar = document.getElementById("userAvatarImg");
   const fallback = document.getElementById("userAvatarFallback");
   if (nameDisplay) nameDisplay.textContent = currentUserName;
+  const vipName = document.getElementById('ownVipName');
+  if (vipName) {
+    renderPlayerIdentity(vipName, { id: currentUserId, name: currentUserName });
+    vipName.hidden = !vipName.classList.contains('club-vip');
+  }
   if (currentUserPhoto) {
     if (avatar) { avatar.src = currentUserPhoto; avatar.style.display = "block"; }
     if (fallback) fallback.style.display = "none";
@@ -257,6 +263,7 @@ function openProfileModal(firstSetup = false) {
     }
   }
   if (cancelBtn) cancelBtn.style.display = firstSetup ? "none" : "inline-block";
+  updateProfileUI();
   modal.dataset.firstSetup = firstSetup ? "true" : "false";
   modal.style.display = "flex";
 }
@@ -390,11 +397,22 @@ function prepareCreatorRoomState(code, timeSeconds, guestId = null, guestName = 
   myOnlineColor = 'w';
   friendTimeControl = Number(timeSeconds) || 0;
   friendRoomData = { creatorId: currentUserId, creatorName: currentUserName, creatorRating: currentUserRating, creatorPhoto: currentUserPhoto || '', guestId: guestId || null, guestName: guestName || null, guestRating: null, guestPhoto: '' };
-  board.orientation('white');
-  game.reset();
-  board.start();
+  resetFriendBoard('white');
   lockModeButtons(true);
   resetFriendClockUI();
+}
+
+function resetFriendBoard(orientation) {
+  game.reset();
+  redoStack = [];
+  moveQualityHistory = [];
+  selectedSquare = null;
+  clearClickHighlights();
+  clearHighlights();
+  window.BChessPremove?.clear();
+  board.orientation(orientation);
+  board.start();
+  updateUI();
 }
 
 function activateCreatorRoom(code) {
@@ -406,6 +424,7 @@ function activateCreatorRoom(code) {
 }
 
 function createFriendRoomWithTime(timeSeconds, challengeFriendId = null, challengeFriendName = null, challengeFriendRating = null) {
+  if (currentRoomCode || joiningFriendRoom || quickBot) return;
   const code = generateRoomCode();
   prepareCreatorRoomState(code, timeSeconds, challengeFriendId, challengeFriendName);
   // Match must not start until the opponent accepts.
@@ -414,15 +433,20 @@ function createFriendRoomWithTime(timeSeconds, challengeFriendId = null, challen
   if (challengeFriendId) showChallengeSentStatus(challengeFriendId, challengeFriendName, challengeFriendRating, friendTimeControl);
   else setWaitingDetails('Waiting for Opponent...', 'Room ' + code + ' • ' + friendTimeLabel(friendTimeControl), 'Share the room code. The match starts once your opponent joins.');
 
-  database.ref("rooms/" + code).set(buildRoomPayload(friendTimeControl, {
+  return database.ref("rooms/" + code).set(buildRoomPayload(friendTimeControl, {
     challengeFriendId: challengeFriendId || null,
     challengeFriendName: challengeFriendName || null
   })).then(() => {
+    if (currentRoomCode !== code) return;
     activateCreatorRoom(code);
     if (challengeFriendId) {
       const label = friendTimeLabel(friendTimeControl);
       database.ref('users/' + challengeFriendId + '/challenges/' + code).set({fromId: currentUserId, fromName: currentUserName, fromRating: currentUserRating, fromPhoto: currentUserPhoto || '', timeControl: friendTimeControl, timeLabel: label, message: currentUserName + ' challenged you to a ' + label + ' game!', createdAt: firebase.database.ServerValue.TIMESTAMP});
     }
+  }).catch(err => {
+    if (currentRoomCode !== code) return;
+    cleanupFriendGame(false);
+    alert('Could not create the room. ' + err.message);
   });
 }
 
@@ -461,14 +485,19 @@ function joinFriendRoom(codeOverride, onFail) {
   const code = (typeof codeOverride === 'string' ? codeOverride : document.getElementById("roomCodeInput").value).trim().toUpperCase();
   if (!code) return alert("Enter Room Code");
 
-  if (currentRoomCode) return;
-  roomAction(code, 'join').then(val => {
-    if (currentRoomCode) return;
+  if (currentRoomCode || joiningFriendRoom) return;
+  joiningFriendRoom = true;
+  const joinButton = document.getElementById('joinRoomBtn');
+  if (joinButton) joinButton.disabled = true;
+  return roomAction(code, 'join').then(val => {
+    if (!val || val.guestId !== currentUserId) throw new Error('Room unavailable');
+    if (currentRoomCode || currentMode !== 'friend') return;
     currentRoomCode = code;
     myOnlineColor = 'b';
     friendTimeControl = Number(val.timeControl) || 0;
     friendRoomData = val;
-    board.orientation('black');
+    resetFriendBoard('black');
+    updateFriendPlayerLabels(val);
     lockModeButtons(true);
     resetFriendClockUI();
     document.getElementById("activeRoomInfo").style.display = "flex";
@@ -476,7 +505,10 @@ function joinFriendRoom(codeOverride, onFail) {
     updateTimeControlUI();
     listenToRoom(code, false);
     startVoiceChat(code, false);
-  }).catch(err => fail(err.message));
+  }).catch(err => fail(err.message)).finally(() => {
+    joiningFriendRoom = false;
+    if (joinButton) joinButton.disabled = false;
+  });
 }
 
 function showFriendTimeModal(onSelect, options = {}) {
@@ -655,6 +687,7 @@ function cleanupFriendGame(resetMode = true) {
   isMicMuted = true;
   renderMicControls(false);
   boardPlayerInfo = null;
+  if (board) updateBoardPlayerNames();
   currentRoomCode = null;
   isOnlineMatchActive = false;
   friendTimeControl = 0;
@@ -686,7 +719,8 @@ function listenToRoom(code, isCreator) {
   friendRoomRefresh = setInterval(() => {
     if (currentRoomCode === code && !friendRoomData?.gameOver &&
         (!friendRoomData?.guestId || !friendRoomData?.clockStartedAt && friendTimeControl > 0 ||
-         game.turn() !== myOnlineColor || pendingOnlineMove)) roomRef.once('value').catch(() => {});
+         game.turn() !== myOnlineColor || pendingOnlineMove ||
+         document.getElementById('chatTab')?.classList.contains('active-content'))) roomRef.once('value').catch(() => {});
   }, 2500);
   roomRef.on("value", (snap) => {
     if (currentRoomCode !== code) return;
@@ -753,21 +787,41 @@ function listenToRoom(code, isCreator) {
   listenForChat(code);
 }
 
+function renderPlayerIdentity(element, player) {
+  if (!element) return;
+  const name = player.name;
+  const rating = player.rating == null ? '' : ' • ' + player.rating;
+  if (element.dataset.vipUser === (player.id || '') && element.dataset.identityText === name + rating) return;
+  element.dataset.vipUser = player.id || '';
+  element.dataset.identityText = name + rating;
+  const username = document.createElement('span');
+  username.className = 'club-username';
+  username.textContent = name;
+  element.replaceChildren(username);
+  if (rating) {
+    const elo = document.createElement('span');
+    elo.className = 'club-elo';
+    elo.textContent = player.rating;
+    element.append(elo);
+  }
+  window.BChessVip?.paint(element);
+}
+
+function updateBoardPlayerNames() {
+  const flipped = board.orientation() === 'black';
+  for (const [id, side] of [['topPlayerName', flipped ? 'w' : 'b'], ['bottomPlayerName', flipped ? 'b' : 'w']]) {
+    renderPlayerIdentity(document.getElementById(id), boardPlayerInfo?.[side] || { name: side === 'w' ? 'White' : 'Black' });
+  }
+}
+
 function updateFriendPlayerLabels(roomValue) {
   if (!roomValue) return;
-  const white = { name: roomValue.creatorName || 'White', rating: Number(roomValue.creatorRating || 800) };
-  const black = { name: roomValue.guestName || 'Waiting...', rating: Number(roomValue.guestRating || 800) };
-  if (currentRoomCode) boardPlayerInfo = { w: white, b: black };
+  boardPlayerInfo = {
+    w: { id: roomValue.creatorId, name: roomValue.creatorName || 'White', rating: Number(roomValue.creatorRating || 800) },
+    b: { id: roomValue.guestId, name: roomValue.guestName || 'Waiting...', rating: Number(roomValue.guestRating || 800) }
+  };
   updateBoardMicButtons();
-  const topIsWhite = board.orientation() === 'black';
-  const top = topIsWhite ? white : black;
-  const bottom = topIsWhite ? black : white;
-  const topEl = document.getElementById('topPlayerName');
-  const bottomEl = document.getElementById('bottomPlayerName');
-  if (currentMode === 'friend' && currentRoomCode) {
-    if (topEl) topEl.textContent = `${top.name} • ${top.rating}`;
-    if (bottomEl) bottomEl.textContent = `${bottom.name} • ${bottom.rating}`;
-  }
+  updateBoardPlayerNames();
 }
 
 function getLocalMatchStats() {
@@ -1356,43 +1410,69 @@ function offerDrawGame() {
 }
 
 // --- LIVE CHAT ---
-function handleSendChat(e) {
+function renderChatBubble(msg) {
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble ' + (msg.senderId === currentUserId ? 'mine' : 'theirs');
+  const author = document.createElement('span');
+  author.className = 'chat-bubble-author';
+  author.textContent = msg.sender;
+  const text = document.createElement('span');
+  text.className = 'chat-bubble-text';
+  text.textContent = msg.text;
+  bubble.append(author, text);
+  return bubble;
+}
+
+async function handleSendChat(e) {
   e.preventDefault();
-  const input = document.getElementById("chatInput");
+  const input = document.getElementById('chatInput');
+  const button = e.currentTarget.querySelector('[type="submit"]');
+  const status = document.getElementById('chatSendStatus');
   const text = input.value.trim();
-  if (text && quickBot && !currentRoomCode) {
-    const box = document.getElementById("chatMessages");
-    const bubble = document.createElement("div");
-    bubble.className = 'chat-bubble mine';
-    bubble.innerHTML = `<span class="chat-bubble-author">${escapeHtml(currentUserName)}</span><span class="chat-bubble-text">${escapeHtml(text)}</span>`;
-    if (box) { box.appendChild(bubble); box.scrollTop = box.scrollHeight; }
-    input.value = "";
+  const code = currentRoomCode;
+  if (!text || button.disabled) return;
+  const msg = { sender: currentUserName, senderId: currentUserId, text, timestamp: firebase.database.ServerValue.TIMESTAMP };
+  if (quickBot && !code) {
+    const box = document.getElementById('chatMessages');
+    box.append(renderChatBubble(msg));
+    box.scrollTop = box.scrollHeight;
+    input.value = '';
     return;
   }
-  if (!text || !currentRoomCode) return;
-
-  database.ref("rooms/" + currentRoomCode + "/chat").push({
-    sender: currentUserName,
-    senderId: currentUserId,
-    text: text,
-    timestamp: Date.now()
-  });
-  input.value = "";
+  if (!code) return;
+  button.disabled = true;
+  status.hidden = true;
+  const draft = input.value;
+  try {
+    await database.ref('rooms/' + code + '/chat').push(msg);
+    if (currentRoomCode === code && input.value === draft) input.value = '';
+  } catch (err) {
+    if (currentRoomCode === code) {
+      status.textContent = 'Message could not be sent. ' + err.message;
+      status.hidden = false;
+    }
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function listenForChat(code) {
-  const box = document.getElementById("chatMessages");
+  const box = document.getElementById('chatMessages');
   if (!box) return;
-  box.innerHTML = "";
+  friendChatListenerRef?.off();
+  box.replaceChildren();
+  const status = document.getElementById('chatSendStatus');
+  if (status) status.hidden = true;
 
-  friendChatListenerRef = database.ref("rooms/" + code + "/chat").limitToLast(40);
-  friendChatListenerRef.on("child_added", (snap) => {
-    const msg = snap.val();
-    const isMe = msg.senderId === currentUserId;
-    const bubble = document.createElement("div");
-    bubble.className = `chat-bubble ${isMe ? 'mine' : 'theirs'}`;
-    bubble.innerHTML = `<span class="chat-bubble-author">${escapeHtml(msg.sender)}</span><span class="chat-bubble-text">${escapeHtml(msg.text)}</span>`;
-    box.appendChild(bubble);
+  friendChatListenerRef = database.ref('rooms/' + code + '/chat').limitToLast(40);
+  friendChatListenerRef.on('value', snap => {
+    if (currentRoomCode !== code) return;
+    const bubbles = document.createDocumentFragment();
+    snap.forEach(entry => {
+      const msg = entry.val();
+      if (typeof msg?.text === 'string') bubbles.append(renderChatBubble(msg));
+    });
+    box.replaceChildren(bubbles);
     box.scrollTop = box.scrollHeight;
   });
 }
@@ -2596,14 +2676,7 @@ function updateCapturedPiecesDisplay() {
   const topList = isFlipped ? capturedFromBlack : capturedFromWhite;
   const bottomList = isFlipped ? capturedFromWhite : capturedFromBlack;
 
-  const barLabel = (color) => boardPlayerInfo && boardPlayerInfo[color]
-    ? `${boardPlayerInfo[color].name} • ${boardPlayerInfo[color].rating}`
-    : (color === 'w' ? 'White' : 'Black');
-  const topName = barLabel(isFlipped ? 'w' : 'b');
-  const bottomName = barLabel(isFlipped ? 'b' : 'w');
-
-  document.getElementById('topPlayerName').textContent = topName;
-  document.getElementById('bottomPlayerName').textContent = bottomName;
+  updateBoardPlayerNames();
 
   // Each clock stays in the bar of the player it belongs to.
   const topBar = document.getElementById('topCapturedBar');
@@ -2803,6 +2876,7 @@ function setQuickMatchView(view) {
 }
 
 function setGameMode(mode) {
+  if (joiningFriendRoom && mode !== 'friend') return;
   if (window.bchessTournamentActive) { alert('Finish your tournament match first.'); return; }
   if (window.closeTournamentMode) window.closeTournamentMode();
   if (isOnlineMatchActive && mode !== 'friend') {
@@ -3163,7 +3237,7 @@ $(document).ready(function() {
   if (cancelTimeBtn) cancelTimeBtn.addEventListener('click', closeFriendTimeModal);
 
   const joinBtn = document.getElementById('joinRoomBtn');
-  if (joinBtn) joinBtn.addEventListener('click', joinFriendRoom);
+  if (joinBtn) joinBtn.addEventListener('click', () => joinFriendRoom());
 
   const copyBtn = document.getElementById('copyRoomCodeBtn');
   if (copyBtn) copyBtn.addEventListener('click', copyRoomCode);
@@ -3319,6 +3393,7 @@ $(document).ready(function() {
     const chat = document.getElementById('chatTab');
     const opening = !chat.classList.contains('active-content');
     document.querySelector(opening ? '[data-tab="chatTab"]' : '[data-tab="movesTab"]')?.click();
+    if (opening) chat.scrollIntoView({ block: 'nearest' });
   });
   document.querySelectorAll('.tab').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
@@ -3384,28 +3459,24 @@ function textEsc(str) {
 // ---------- Player search ----------
 let playerSearchTimer = null;
 let playerSearchSeq = 0;
-let playerSearchCache = {};
+let profileInspectSeq = 0;
 
-async function fetchPlayersByPrefix(term) {
-  const lower = term.toLowerCase();
-  const variants = Array.from(new Set([term, lower, lower.charAt(0).toUpperCase() + lower.slice(1), term.toUpperCase()]));
-  const merged = {};
-  await Promise.all(variants.map(v =>
-    database.ref('users').orderByChild('username').startAt(v).endAt(v + '\uf8ff').limitToFirst(10).once('value')
-      .then(snap => {
-        const d = snap.val() || {};
-        Object.keys(d).forEach(id => { merged[id] = d[id]; });
-      })
-  ));
-  return Object.keys(merged)
-    .filter(id => String(merged[id].username || '').toLowerCase().startsWith(lower))
-    .slice(0, 10)
-    .map(id => ({
-      id,
-      username: merged[id].username || 'Player',
-      rating: Number(merged[id].rating || 800),
-      photo: merged[id].photo || merged[id].photoURL || ''
-    }));
+function fetchPlayersByPrefix(term) {
+  return window.sbCall('bchess_inspect_search', { p_prefix: term });
+}
+
+function resizePlayerSearchResults() {
+  const box = document.getElementById('playerSearchResults');
+  if (!box?.getClientRects().length || !window.matchMedia('(max-width: 700px)').matches) return;
+  const viewport = window.visualViewport;
+  const bottom = (viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight);
+  box.style.setProperty('--search-results-height', Math.max(70, Math.floor(bottom - box.getBoundingClientRect().top - 8)) + 'px');
+}
+
+function dismissPlayerSearch() {
+  clearTimeout(playerSearchTimer);
+  playerSearchSeq++;
+  document.getElementById('playerSearchResults').style.display = 'none';
 }
 
 function playerAvatarHtml(p, cls) {
@@ -3418,9 +3489,8 @@ function renderPlayerSearchResults(list, message) {
   const box = document.getElementById('playerSearchResults');
   if (!box) return;
   box.style.display = 'block';
+  resizePlayerSearchResults();
   if (message) { box.innerHTML = `<div class="player-search-empty">${textEsc(message)}</div>`; return; }
-  playerSearchCache = {};
-  list.forEach(p => { playerSearchCache[p.id] = p; });
   box.innerHTML = list.map(p => `
     <div class="player-result-row" data-id="${attrEsc(p.id)}">
       <div class="player-result-info">
@@ -3439,8 +3509,7 @@ function renderPlayerSearchResults(list, message) {
 function runPlayerSearch() {
   const input = document.getElementById('playerSearchInput');
   const term = (input.value || '').trim();
-  const box = document.getElementById('playerSearchResults');
-  if (!term) { if (box) box.style.display = 'none'; return; }
+  if (!term) return dismissPlayerSearch();
   if (!currentUserId) { renderPlayerSearchResults([], 'Sign in with Google to search players.'); return; }
   const seq = ++playerSearchSeq;
   renderPlayerSearchResults([], 'Searching...');
@@ -3463,17 +3532,19 @@ function formatMatchDate(ts) {
 
 function openPlayerProfile(userId) {
   if (!currentUserId) { alert('Please Sign in with Google first!'); return; }
-  const results = document.getElementById('playerSearchResults');
-  if (results) results.style.display = 'none';
+  dismissPlayerSearch();
+  document.getElementById('playerSearchInput')?.blur();
+  const seq = ++profileInspectSeq;
   const modal = document.getElementById('playerProfileModal');
   const body = document.getElementById('playerProfileBody');
   modal.style.display = 'flex';
   body.innerHTML = '<div class="friend-empty">Loading profile...</div>';
-  database.ref('users/' + userId).once('value').then(snap => {
-    const u = snap.val();
+  window.sbCall('bchess_inspect_profile', { p_uid: userId }).then(u => {
+    if (seq !== profileInspectSeq) return;
     if (!u) { body.innerHTML = '<div class="friend-empty">Player not found.</div>'; return; }
     renderPlayerProfile(userId, u);
   }).catch(err => {
+    if (seq !== profileInspectSeq) return;
     console.warn('Profile load failed:', err);
     body.innerHTML = '<div class="friend-empty">Could not load this profile.</div>';
   });
@@ -3522,7 +3593,7 @@ function renderPlayerProfile(userId, u) {
   body.innerHTML = `
     <div class="pp-header">
       ${playerAvatarHtml(player, 'pp-avatar')}
-      <div class="pp-header-text"><h2 data-club-profile="${attrEsc(userId)}">${textEsc(player.username)}</h2><span class="rating-badge-pill">${Number(u.rating || 800)} Elo</span></div>
+      <div class="pp-header-text"><h2 class="pp-identity"></h2><span class="rating-badge-pill">${Number(u.rating || 800)} Elo</span></div>
     </div>
     <div class="pp-stats">
       <div class="pp-stat"><strong>${total}</strong><span>Played</span></div>
@@ -3539,10 +3610,12 @@ function renderPlayerProfile(userId, u) {
     <div class="friend-list">${total ? matches.slice(0, 5).map((m, i) => matchRow(m, i)).join('') : '<div class="friend-empty">No matches played yet.</div>'}</div>
     ${total > 5 ? `<div class="pp-section-title">Previous Matches (tap Review to replay)</div><div class="friend-list pp-all-matches">${matches.slice(5).map((m, i) => matchRow(m, i + 5)).join('')}</div>` : ''}
   `;
+  renderPlayerIdentity(body.querySelector('.pp-identity'), { id: userId, name: player.username });
   body.querySelectorAll('.review-match-btn').forEach(btn => btn.addEventListener('click', () => openMatchReview(Number(btn.dataset.idx), player.username)));
 }
 
 function closePlayerProfile() {
+  profileInspectSeq++;
   const modal = document.getElementById('playerProfileModal');
   if (modal) modal.style.display = 'none';
 }
@@ -3738,20 +3811,23 @@ $(document).ready(function() {
     psInput.addEventListener('input', () => {
       if (psClear) psClear.style.display = psInput.value ? 'inline-flex' : 'none';
       clearTimeout(playerSearchTimer);
-      playerSearchTimer = setTimeout(runPlayerSearch, 350);
+      playerSearchSeq++;
+      if (psInput.value.trim()) playerSearchTimer = setTimeout(runPlayerSearch, 350);
+      else dismissPlayerSearch();
     });
     psInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(playerSearchTimer); runPlayerSearch(); } });
     psInput.addEventListener('focus', () => { if (psInput.value.trim()) runPlayerSearch(); });
+    window.visualViewport?.addEventListener('resize', resizePlayerSearchResults);
+    window.visualViewport?.addEventListener('scroll', resizePlayerSearchResults);
   }
   if (psClear) psClear.addEventListener('click', () => {
     psInput.value = '';
     psClear.style.display = 'none';
-    playerSearchSeq++;
-    document.getElementById('playerSearchResults').style.display = 'none';
+    dismissPlayerSearch();
   });
   document.addEventListener('click', (e) => {
     const wrap = document.getElementById('playerSearchWrap');
-    if (wrap && !wrap.contains(e.target)) document.getElementById('playerSearchResults').style.display = 'none';
+    if (wrap && !wrap.contains(e.target) && e.target.isConnected) dismissPlayerSearch();
   });
 
   // Profile + review modals
@@ -4123,7 +4199,7 @@ function launchQuickBotGame(tc, name, rating, increment = 0, timeKey = null) {
   isBotThinking = false;
   clearClickHighlights();
   clearHighlights();
-  const me = { name: currentUserName, rating: currentUserRating };
+  const me = { id: currentUserId, name: currentUserName, rating: currentUserRating };
   const opp = { name, rating };
   boardPlayerInfo = myColor === 'w' ? { w: me, b: opp } : { w: opp, b: me };
   board.orientation(myColor === 'w' ? 'white' : 'black');

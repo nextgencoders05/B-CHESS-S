@@ -54,20 +54,167 @@
     id('clubMatch').textContent = error ? error.message : match ? 'Selected profile: ' + match.username : 'No unique matching profile.';
     id('clubActions').hidden = !match;
   };
-  for (const [key,enabled] of [['clubApply',true],['clubRemove',false]]) id(key).onclick = async () => {
-    if (!match) return;
-    const selected = match;
-    const {error} = await sb.rpc('club_set_gold',{target:selected.uid,enabled});
-    if (selected === match) id('clubMatch').textContent = error ? error.message : selected.username + (enabled ? ' · Gold applied' : ' · Gold removed');
-    paint();
-  };
-  async function paint() {
-    const name = document.querySelector('[data-club-profile]');
-    if (!name || !window.sb) return;
-    const {data} = await sb.from('club_gold').select('uid').eq('uid',name.dataset.clubProfile).maybeSingle();
-    name.classList.toggle('club-gold',!!data);
+  const vipPanel = id('clubVipPanel');
+  const vipList = id('clubVipMembers');
+  const vipStatus = id('clubVipStatus');
+  let listRequest = 0;
+  let changingVip = false;
+  let listedMembers = null;
+
+  async function loadVipMembers() {
+    const request = ++listRequest;
+    const { data, error } = await sb.rpc('club_vip_members');
+    if (request !== listRequest || !id('adminDashboard').getClientRects().length) return;
+    if (error) {
+      vipStatus.textContent = 'Could not load VIP members. ' + error.message;
+      return;
+    }
+    renderVipMembers(data);
+    vipStatus.textContent = data.length ? '' : 'No current VIP members.';
   }
-  new MutationObserver(paint).observe(id('playerProfileBody'),{childList:true});
+
+  function renderVipMembers(members) {
+    listedMembers = members;
+    const rows = members.map(member => {
+      const row = document.createElement('li');
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'pill-btn';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', 'Remove VIP from ' + member.username);
+      remove.disabled = changingVip;
+      remove.onclick = () => setGold(member, false, vipStatus);
+      row.append(document.createTextNode(member.username), remove);
+      return row;
+    });
+    vipList.replaceChildren(...rows);
+    id('clubVipCount').textContent = '(' + members.length + ')';
+  }
+
+  function disableVipActions(disabled) {
+    id('clubApply').disabled = disabled;
+    id('clubRemove').disabled = disabled;
+    vipList.querySelectorAll('button').forEach(button => { button.disabled = disabled; });
+  }
+
+  async function setGold(selected, enabled, output) {
+    if (!selected || changingVip) return;
+    changingVip = true;
+    ++listRequest;
+    disableVipActions(true);
+    try {
+      const { error } = await sb.rpc('club_set_gold', { target: selected.uid, enabled });
+      if (error) throw error;
+      ++vipRequest;
+      vipKnown.set(selected.uid, enabled);
+      document.querySelectorAll('[data-vip-user]').forEach(updateVipBadge);
+      if (output !== vipStatus && selected === match) {
+        output.textContent = selected.username + (enabled ? ' · Gold applied' : ' · Gold removed');
+      }
+      if (listedMembers) {
+        const members = listedMembers.filter(member => member.uid !== selected.uid);
+        if (enabled) members.push(selected);
+        members.sort((a, b) => a.username.localeCompare(b.username));
+        renderVipMembers(members);
+      }
+      if (vipPanel.open && id('adminDashboard').getClientRects().length) await loadVipMembers();
+    } catch (error) {
+      output.textContent = error.message;
+    } finally {
+      changingVip = false;
+      disableVipActions(false);
+    }
+  }
+
+  id('clubApply').onclick = () => setGold(match, true, id('clubMatch'));
+  id('clubRemove').onclick = () => setGold(match, false, id('clubMatch'));
+  vipPanel.addEventListener('toggle', () => {
+    if (vipPanel.open && id('adminDashboard').getClientRects().length) loadVipMembers();
+  });
+  document.addEventListener('bchess-admin-open', () => { if (vipPanel.open) loadVipMembers(); });
+  document.addEventListener('bchess-admin-close', () => {
+    ++listRequest;
+    listedMembers = null;
+    vipList.replaceChildren();
+    id('clubVipCount').textContent = '';
+    vipStatus.textContent = '';
+  });
+
+  const vipKnown = new Map();
+  let vipChannel;
+  let vipRefreshTimer;
+  let vipRequest = 0;
+
+  function updateVipBadge(element) {
+    const enabled = !!vipKnown.get(element.dataset.vipUser);
+    element.classList.toggle('club-vip', enabled);
+    if (element.id === 'ownVipName') element.hidden = !enabled;
+    const existing = element.querySelector('.club-vip-badge');
+    if (!enabled) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
+    const name = element.querySelector('.club-username');
+    if (!name) return;
+    const badge = document.createElement('span');
+    badge.className = 'club-vip-badge';
+    const image = document.createElement('img');
+    image.src = 'icons/vip-badge.png';
+    image.width = 2172;
+    image.height = 724;
+    image.alt = 'VIP';
+    badge.append(image);
+    name.after(badge);
+  }
+
+  async function refreshVipBadges() {
+    const request = ++vipRequest;
+    const elements = Array.from(document.querySelectorAll('[data-vip-user]'));
+    const users = [...new Set(elements.map(element => element.dataset.vipUser).filter(Boolean))];
+    if (!users.length || !auth.currentUser) return;
+    const { data, error } = await sb.from('club_gold').select('uid').in('uid', users);
+    if (error || request !== vipRequest) return;
+    const enabled = new Set(data.map(row => row.uid));
+    users.forEach(uid => vipKnown.set(uid, enabled.has(uid)));
+    document.querySelectorAll('[data-vip-user]').forEach(updateVipBadge);
+  }
+
+  function queueVipRefresh() {
+    clearTimeout(vipRefreshTimer);
+    vipRefreshTimer = setTimeout(refreshVipBadges, 50);
+  }
+  function vipChanged() {
+    ++vipRequest;
+    queueVipRefresh();
+  }
+  window.BChessVip = {
+    paint(element) {
+      updateVipBadge(element);
+      if (element.dataset.vipUser) queueVipRefresh();
+    }
+  };
+  auth.onAuthStateChanged(user => {
+    if (!user) {
+      if (vipChannel) sb.removeChannel(vipChannel);
+      vipChannel = null;
+      ++vipRequest;
+      vipKnown.clear();
+      document.querySelectorAll('[data-vip-user]').forEach(updateVipBadge);
+      return;
+    }
+    if (!vipChannel) {
+      vipChannel = sb.channel('club-vip-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'club_gold' }, vipChanged)
+        .subscribe(status => { if (status === 'SUBSCRIBED') vipChanged(); });
+    }
+    queueVipRefresh();
+  });
+  setInterval(() => {
+    if (!document.hidden && (currentRoomCode || quickBot || window.bchessTournamentActive ||
+        id('profileModal').getClientRects().length || id('playerProfileModal').getClientRects().length)) refreshVipBadges();
+  }, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) queueVipRefresh(); });
   async function counts() {
     if (!id('clubCounts').open || !id('adminDashboard').getClientRects().length || document.hidden) return;
     try {

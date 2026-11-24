@@ -48,6 +48,14 @@
    onSnapEnd:()=>{if(st.game)st.board.position(st.game.fen,false);selectTour(st.selected);}});
   if(changed){selectTour(null);st.board.orientation(g.white_id===currentUserId?'white':'black');st.board.position(g.fen,false);}st.board.resize();selectTour(st.selected);
   $('tourGameTitle').textContent='Round '+g.round+' — You play '+(g.white_id===currentUserId?'White':'Black');
+  const entries = st.data?.entries || [];
+  $('tourPlayerNames').hidden = g.status !== 'active';
+  if (g.status === 'active') {
+    for (const [side, uid] of [['White', g.white_id], ['Black', g.black_id]]) {
+      const player = entries.find(entry => entry.user_id === uid);
+      renderPlayerIdentity($('tour' + side + 'Name'), { id: uid, name: player?.name || side });
+    }
+  }
   $('tourGameStatus').textContent=g.status!=='active'?'Match finished: '+g.result:g.clock_at?(canMove()?'Your turn':'Opponent to move'):'Waiting for both players to connect…';
   $('tourMoves').textContent=g.moves.join(' ');$('tourResign').disabled=g.status!=='active';$('tourDraw').disabled=g.status!=='active';$('tourAcceptDraw').hidden=!(g.status==='active'&&g.draw_offer&&g.draw_offer!==currentUserId);clocks();
  }

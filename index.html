@@ -73,10 +73,10 @@
       <div class="player-search-wrap" id="playerSearchWrap">
         <div class="player-search-box">
           <span class="player-search-icon">🔍</span>
-          <input type="text" id="playerSearchInput" class="player-search-input" placeholder="Search players..." autocomplete="off" maxlength="20" />
+          <input type="text" id="playerSearchInput" aria-label="Search players" enterkeyhint="search" class="player-search-input" placeholder="Search players..." autocomplete="off" maxlength="20" />
           <button type="button" id="playerSearchClearBtn" class="player-search-clear" style="display:none;" title="Clear">✕</button>
         </div>
-        <div id="playerSearchResults" class="player-search-results" style="display:none;"></div>
+        <div id="playerSearchResults" aria-live="polite" class="player-search-results" style="display:none;"></div>
       </div>
       <div class="theme-controls">
         <button type="button" id="connectionStatus" class="pill-btn connection-control" aria-expanded="false" aria-controls="connectionStatusText" aria-label="Your B Chess connection: Checking connection"><span class="connection-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="connection-label" id="connectionStatusText" aria-live="polite">Checking connection</span></button>
@@ -116,7 +116,7 @@
       <h2>🏆 Tournaments</h2><p id="tourMessage" role="status" aria-live="polite"></p>
       <div id="tourLeaderboard"></div>
       <div id="tourList"></div><div id="tourDetails"></div>
-      <section id="tourGamePanel" hidden><h3 id="tourGameTitle"></h3><div id="tourClocks" class="tour-clocks"></div>
+      <section id="tourGamePanel" hidden><h3 id="tourGameTitle"></h3><div id="tourPlayerNames" hidden><span id="tourWhiteName"></span><span id="tourBlackName"></span></div><div id="tourClocks" class="tour-clocks"></div>
       <div id="tournamentBoard"></div><p id="tourGameStatus" aria-live="polite"></p>
       <button id="tourResign" class="pill-btn">Resign</button><button id="tourDraw" class="pill-btn">Offer draw</button><button id="tourAcceptDraw" class="pill-btn" hidden>Accept draw</button>
       <p id="tourMoves"></p></section>
@@ -417,6 +417,7 @@
             <div id="chatMessages" class="chat-messages-scroll">
               <div class="chat-empty-msg">Connect to a multiplayer room to chat in real-time.</div>
             </div>
+            <p id="chatSendStatus" role="status" hidden></p>
             <form id="chatForm" class="chat-input-form">
               <input type="text" id="chatInput" placeholder="Type a message to your opponent..." autocomplete="off" />
               <button type="submit" class="pill-btn highlight-btn">Send</button>
@@ -621,6 +622,7 @@
     <div class="skill-modal-window profile-modal-window">
       <div class="modal-chess-icon">♟</div>
       <h2>Set Up Your Profile</h2>
+      <p id="ownVipName" hidden></p>
       <p class="modal-subtext">Choose the username and profile picture you want to use on B Chess Analyzer.</p>
       <label class="profile-field-label" for="profileUsernameInput">Username</label>
       <p id="profileCurrentRating"></p><button id="signOutBtn" type="button" class="pill-btn signout-pill">Sign Out</button>
@@ -694,7 +696,16 @@
       </header>
       <section class="admin-section">
         <details id="clubCounts"><summary>Real-Time Users</summary><output id="clubTotals">Loading…</output></details>
-        <details><summary>VIP Profile</summary><label>Username <input id="clubUser" maxlength="20"></label><button id="clubSearch" class="pill-btn">Search</button><p id="clubMatch" role="status"></p><div id="clubActions" hidden><button id="clubApply" class="pill-btn">Apply Gold</button> <button id="clubRemove" class="pill-btn">Remove Gold</button></div></details>
+        <details id="clubVipPanel">
+          <summary>VIP Profile</summary>
+          <label>Username <input id="clubUser" maxlength="20"></label>
+          <button id="clubSearch" class="pill-btn">Search</button>
+          <p id="clubMatch" role="status"></p>
+          <div id="clubActions" hidden><button id="clubApply" class="pill-btn">Apply Gold</button> <button id="clubRemove" class="pill-btn">Remove Gold</button></div>
+          <h3>Current VIP Members <span id="clubVipCount"></span></h3>
+          <p id="clubVipStatus" role="status"></p>
+          <ul id="clubVipMembers"></ul>
+        </details>
         <details id="vcAdmin"><summary>Vada Chennai Pieces</summary><label>Side <select id="vcSide"><option value="b">Black — Human player</option><option value="w">White — Bot opponent</option></select></label><label>Upload image (PNG, JPG, WebP) <input type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" id="vcFile"></label><label>Character <select id="vcCharacter"></select></label><label id="vcCustomLabel" hidden>Custom character name <input id="vcCustomName" maxlength="60"></label><label>Role <select id="vcRole"></select></label><label>Starting slot <select id="vcSlot"></select></label><div id="vcPreview"></div><button id="vcSave" class="pill-btn">Save assignment</button><output id="vcStatus" role="status"></output></details>
         <details id="voiceAdmin"><summary>Vada Chennai Character Voices</summary><div id="voiceEditor"></div></details><details id="vcMusicAdmin"><summary>Vada Chennai BGM</summary><p>Current track: <strong id="vcTrackName">Loading…</strong></p><label>Upload MP3 <input id="vcTrackFile" type="file" accept=".mp3,audio/mpeg"></label><button id="vcListen" class="pill-btn">Preview</button><button id="vcPublish" class="pill-btn">Save BGM</button><output id="vcTrackStatus" role="status"></output></details></section><section class="admin-section"><h3>🧩 Puzzles</h3>
         <label for="puzzleFormat">Import format</label>

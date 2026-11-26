@@ -51,11 +51,31 @@
       more.setAttribute('aria-expanded','false');
       dialog.showModal();
     }
-    const choice = document.createElement('button');
-    choice.className = 'pill-btn';
-    choice.textContent = 'Modes';
-    choice.onclick = showModes;
-    panel.append(choice);
+    const moreItems = [
+      ['Syndicate', 'openSyndicate'],
+      ['Modes', null],
+      ['Friends', 'modeFriendBtn'],
+      ['Books', 'modeBooksBtn'],
+      ['Tournaments', 'modeTournamentBtn'],
+      ['Analyze', 'modeAnalyzeBtn'],
+      ['History', 'modeHistoryBtn'],
+    ];
+    for (const [label, targetId] of moreItems) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pill-btn';
+      button.textContent = label;
+      button.onclick = () => {
+        if (targetId === null) {
+          showModes();
+          return;
+        }
+        panel.hidden = true;
+        more.setAttribute('aria-expanded', 'false');
+        document.getElementById(targetId).click();
+      };
+      panel.append(button);
+    }
     more.onclick=function(){panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));};nav.appendChild(more);nav.appendChild(panel);
     document.addEventListener('click',function(e){if(!nav.contains(e.target)){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
     document.body.appendChild(nav);

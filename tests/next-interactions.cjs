@@ -3,7 +3,7 @@ const {fixture}=require('./interactions.cjs');const assert=require('assert');
  const t=await fixture(360),{w,clock}=t,$=id=>w.document.getElementById(id),click=id=>$(id).click();
  assert.equal(w.document.querySelector('.brand h1')?.textContent||w.document.querySelector('h1').textContent,'B Chess');
  click('userProfile');assert.equal($('profileModal').style.display,'flex');assert($('profileModal').contains($('signOutBtn')));assert($('profileCurrentRating').textContent.includes('1370'));w.closeProfileModal();
- click('mobileMoreBtn');assert(!$('mobileMorePanel').hidden);assert($('mobileMorePanel').textContent.includes('Tournaments'));
+ click('mobileMoreBtn');assert(!$('mobileMorePanel').hidden);assert.equal($('mobileMorePanel').textContent,'Modes');
  const start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
  let puzzles=[{id:'one',stage:1,fen:start,solution:['e2e4'],batch_id:'batch'},{id:'two',stage:2,fen:start,solution:['d2d4'],batch_id:'batch'}],hints=3,seen=new Set(),deletes=[];
  w.sbCall=async(n,a)=>{
@@ -18,7 +18,7 @@ const {fixture}=require('./interactions.cjs');const assert=require('assert');
  w.document.querySelector('.admin-puzzle-card button').click();await clock.tickAsync(0);assert.equal(deletes.length,1);assert($('puzzleStatus').textContent.includes('deleted'));assert($('puzzleStages').textContent.includes('Stage 1'));
  w.document.querySelector('#adminPuzzleBatches button').click();await clock.tickAsync(0);assert.equal(deletes[1].p_batch,'batch');assert.equal(puzzles.length,0);
  puzzles=[{id:'black',stage:1,fen:'7k/8/8/8/8/8/4K3/8 b - - 0 1',solution:['h8g7']}];w.closePuzzleMode();click('modePuzzlesBtn');await clock.tickAsync(0);assert($('puzzleTurn').textContent.includes('Black to move'));
- w.closePuzzleMode();click('mobileMoreBtn');Array.from($('mobileMorePanel').querySelectorAll('button')).find(b=>b.textContent==='Analyze').click();$('analysisPGNInput').value='1. e4 e5 2. Nf3 *';click('analysisPGNLoad');assert.equal($('matchReviewModal').style.display,'flex');assert.equal(w.eval('reviewSans.length'),3);assert($('reviewBoardQuality').textContent.includes('Analyzing'));await clock.tickAsync(0);
+ w.closePuzzleMode();click('modeAnalyzeBtn');$('analysisPGNInput').value='1. e4 e5 2. Nf3 *';click('analysisPGNLoad');assert.equal($('matchReviewModal').style.display,'flex');assert.equal(w.eval('reviewSans.length'),3);assert($('reviewBoardQuality').textContent.includes('Analyzing'));await clock.tickAsync(0);
  $('analysisPGNInput').value='1. e5';click('analysisPGNLoad');assert($('analysisPGNError').textContent.includes('valid PGN'));
  const incomplete=new w.File(['not png'],'wk.png',{type:'image/png'});Object.defineProperty($('adminThemeFiles'),'files',{value:[incomplete],configurable:true});$('adminThemeKind').value='coins';$('adminThemeFiles').dispatchEvent(new w.Event('change'));await clock.tickAsync(0);assert($('adminThemeStatus').textContent.includes('exactly 12'));assert($('adminThemePublish').disabled);
  // Published assets dynamically become choices; applying either must preserve the active board.
@@ -33,7 +33,7 @@ const {fixture}=require('./interactions.cjs');const assert=require('assert');
  assert.equal(classify({score:30,pv:['d2d4'],second:0},{score:180,pv:[]},move,after).quality,'blunder');
  assert.equal(classify({score:30,pv:['e2e4'],second:-150,depth:14},{score:-30,pv:[],depth:14},move,after).quality,'great');
  // A controlled UCI worker validates asynchronous rendering/staleness (not real engine accuracy).
- class Worker {postMessage(cmd){if(cmd==='uci')Promise.resolve().then(()=>this.onmessage({data:'uciok'}));if(cmd.startsWith('go '))w.setTimeout(()=>{this.onmessage({data:'info depth 14 multipv 1 score cp 0 pv e2e4'});this.onmessage({data:'bestmove e2e4'});},50);}terminate(){}}
+ class Worker {postMessage(cmd){if(cmd==='uci')Promise.resolve().then(()=>{this.onmessage({data:'id name Stockfish 18 Lite'});this.onmessage({data:'uciok'});});if(cmd.startsWith('go '))w.setTimeout(()=>{this.onmessage({data:'info depth 14 multipv 1 score cp 0 pv e2e4'});this.onmessage({data:'bestmove e2e4'});},50);}terminate(){}}
  w.Worker=Worker;w.fetch=async()=>({ok:true,text:async()=>'mock UCI'});w.BChessBadges.clear('reviewBoard');w.eval('board.position(game.fen(),false)');
  let valid=true;w.BChessBadges.inspect('myBoard',before,move,after,()=>valid);valid=false;await clock.tickAsync(200);assert(!w.document.querySelector('#myBoard .quality-3d'));
  valid=true;w.BChessBadges.inspect('myBoard',before,move,after,()=>valid);await clock.tickAsync(1200);assert(w.document.querySelector('#myBoard [data-square="e4"] .quality-best'),$('myBoardQuality')?.textContent);w.eval("board.orientation('white')");await clock.tickAsync(0);assert(w.document.querySelector('#myBoard [data-square="e4"] .quality-best'));

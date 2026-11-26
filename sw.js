@@ -2,7 +2,7 @@
 importScripts('./release.js');
 const CACHE_NAME = 'b-chess-shell-' + self.BCHESS_RELEASE.version;
 const APP_SHELL = [
-  './release.js', './club-tools.js', './club-tools.css', './icons/vip-badge.png', './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
+  './release.js', './engine-loader.js', './engine/stockfish-18-lite-single.js', './engine/stockfish-18-lite-single.wasm', './messages.js', './club-tools.js', './club-tools.css', './icons/vip-badge.png', './', './index.html', './style.css', './ux.css', './ux.js', './config.js', './supabase-compat.js', './script.js', './features.js', './features.css', './updates.css', './next-update.css', './club.css', './connection-quality.js', './next-core.js', './move-badges.js', './theme-manager.js', './tournaments.js', './preferences.js', './puzzles.js', './interaction-update.js', './interaction-update.css', './books_data.js', './pwa.js',
   './manifest.webmanifest', './locations/catalog.json', './syndicate.js', './syndicate.css', './icons/icon-32.png', './icons/icon-180.png', './icons/mask-192.png', './icons/mask-512.png', './icons/icon-192.png', './icons/icon-512.png',
   './pieces/wb.png', './pieces/bp.png', './pieces/wk.png', './pieces/wq.png',
   './pieces/wp.png', './pieces/bn.png', './pieces/wn.png', './pieces/wr.png',
@@ -47,6 +47,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', event => {
   const data = event.notification.data || {};
   event.notification.close();
+  if (data.type === 'bchess-message') { event.waitUntil(clients.openWindow(self.registration.scope)); return; }
   if (data.type !== 'bchess-challenge' || !data.code) return;
   const action = event.action === 'accept' || event.action === 'decline' ? event.action : null;
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
@@ -58,4 +59,10 @@ self.addEventListener('notificationclick', event => {
     const scope = self.registration.scope;
     return self.clients.openWindow(scope + '?challenge=' + encodeURIComponent(data.code) + (action ? '&challengeAction=' + action : ''));
   }));
+});
+
+self.addEventListener('push',event=>{
+  if(!event.data)return;
+  const {title,body,tag}=event.data.json();
+  event.waitUntil(self.registration.showNotification(title,{body,tag,icon:new URL('icons/icon-192.png',self.registration.scope).href,data:{type:'bchess-message'}}));
 });

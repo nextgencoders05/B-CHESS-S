@@ -35,11 +35,27 @@
     modes.className = 'ux-nav-item';
     modes.dataset.mode = 'quickMatchModes';
     modes.innerHTML = navigationIcon('<path d="M4 6h16M4 12h16M4 18h16"/>') + '<span>Modes</span>';
-    modes.addEventListener('click', () => document.getElementById('modeQuickBtn').click());
+    modes.addEventListener('click', showModes);
     nav.insertBefore(modes, btns[1]);
     var more = document.createElement('button'); more.className='ux-nav-item mobile-only'; more.id='mobileMoreBtn'; more.innerHTML=navigationIcon('<path d="M4 12h1m6 0h1m6 0h1" stroke-width="3"/>')+'<span>More</span>';more.setAttribute('aria-expanded','false');
     var panel=document.createElement('div');panel.id='mobileMorePanel';panel.hidden=true;
-    [{id:'openSyndicate',label:'Syndicate'},{id:'modeQuickBtn',label:'Modes'},{id:'modeFriendBtn',label:'Friends'},{id:'modeBooksBtn',label:'Books'},{id:'modeTournamentBtn',label:'Tournaments'},{id:'modeAnalyzeBtn',label:'Analyze'},{id:'modeHistoryBtn',label:'History'}].forEach(function(it){var b=document.createElement('button');b.className='pill-btn';b.textContent=it.label;b.onclick=function(){panel.hidden=true;more.setAttribute('aria-expanded','false');document.getElementById(it.id).click();};panel.appendChild(b);});
+    const dialog = document.createElement('dialog');
+    dialog.id = 'specialModes';
+    dialog.setAttribute('aria-labelledby','specialModesTitle');
+    dialog.innerHTML = '<h2 id="specialModesTitle">Modes</h2><button class="pill-btn" data-vada-enter>Vada Chennai Mode</button> <button class="pill-btn" disabled>Influencer Mode · Coming Soon</button><p><button class="pill-btn" data-close>Close</button></p>';
+    document.body.append(dialog);
+    dialog.querySelector('[data-close]').onclick = () => dialog.close();
+    dialog.querySelector('[data-vada-enter]').onclick = () => dialog.close();
+    function showModes() {
+      panel.hidden = true;
+      more.setAttribute('aria-expanded','false');
+      dialog.showModal();
+    }
+    const choice = document.createElement('button');
+    choice.className = 'pill-btn';
+    choice.textContent = 'Modes';
+    choice.onclick = showModes;
+    panel.append(choice);
     more.onclick=function(){panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));};nav.appendChild(more);nav.appendChild(panel);
     document.addEventListener('click',function(e){if(!nav.contains(e.target)){panel.hidden=true;more.setAttribute('aria-expanded','false');}});
     document.body.appendChild(nav);

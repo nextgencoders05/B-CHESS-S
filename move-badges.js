@@ -7,9 +7,7 @@
  async function engine(){
   if(worker)return worker;if(ready)return ready;
   ready=(async()=>{
-   let script;for(const url of ['https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js','https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js']){try{const r=await fetch(url);if(r.ok){script=await r.text();break;}}catch(_){}}
-   if(!script)throw new Error('Analysis engine unavailable');const url=URL.createObjectURL(new Blob([script],{type:'application/javascript'}));const w=new Worker(url);URL.revokeObjectURL(url);
-   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{w.terminate();reject(new Error('Engine startup timed out'));},10000);w.onmessage=e=>{if(String(e.data)==='uciok'){clearTimeout(timer);resolve();}};w.onerror=()=>{clearTimeout(timer);reject(new Error('Analysis engine failed'));};w.postMessage('uci');});
+   const w = await openStockfish18();
    w.postMessage('setoption name Hash value 16');w.postMessage('setoption name MultiPV value 2');worker=w;return w;
   })();try{return await ready;}finally{ready=null;}
  }
@@ -46,7 +44,7 @@
    if(slots.get(id)!==slot||!valid()||competitive())return;
    try{const before=await evaluate(beforeFen);if(slots.get(id)!==slot||!valid()||competitive())return;const after=await evaluate(afterFen);
     if(slots.get(id)!==slot||!valid()||competitive())return;const result=classify(before,after,move,afterFen);Object.assign(slot,result);paint(id,slot);onResult?.(result);
-   }catch(e){if(slots.get(id)===slot&&valid())feedback(id).textContent=e.message+' — no move rating available.';}
+   }catch(e){if(slots.get(id)===slot&&valid()){const retry=document.createElement('button');retry.textContent='Retry analysis';retry.onclick=()=>inspect(id,beforeFen,move,afterFen,valid,onResult);feedback(id).replaceChildren(e.message+' ',retry);}}
   });
  }
  // Board libraries rebuild square contents on flip; restore only a still-current result.

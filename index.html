@@ -458,7 +458,7 @@
   <script src="config.js"></script>
   <script src="supabase-compat.js"></script>
   <script src="books_data.js"></script>
-  <script src="script.js"></script>
+  <script src="engine-loader.js"></script><script src="script.js"></script>
 
 
   <!-- Books Modal (structure only - add content later in BOOKS_DATA in script.js) -->
@@ -706,6 +706,13 @@
           <p id="clubVipStatus" role="status"></p>
           <ul id="clubVipMembers"></ul>
         </details>
+        <details id="broadcastPanel"><summary>Messages</summary>
+          <label>Title <input id="broadcastTitle" maxlength="100"></label>
+          <label>Message <textarea id="broadcastBody" maxlength="500"></textarea></label>
+          <button type="button" class="pill-btn" id="broadcastPreview">Preview</button>
+          <div id="broadcastDraft" hidden><strong id="draftTitle"></strong><p id="draftBody"></p>
+          <button type="button" class="pill-btn" id="broadcastSend">Send to All</button></div>
+          <output id="broadcastStatus" role="status"></output></details>
         <details id="vcAdmin"><summary>Vada Chennai Pieces</summary><label>Side <select id="vcSide"><option value="b">Black — Human player</option><option value="w">White — Bot opponent</option></select></label><label>Upload image (PNG, JPG, WebP) <input type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" id="vcFile"></label><label>Character <select id="vcCharacter"></select></label><label id="vcCustomLabel" hidden>Custom character name <input id="vcCustomName" maxlength="60"></label><label>Role <select id="vcRole"></select></label><label>Starting slot <select id="vcSlot"></select></label><div id="vcPreview"></div><button id="vcSave" class="pill-btn">Save assignment</button><output id="vcStatus" role="status"></output></details>
         <details id="voiceAdmin"><summary>Vada Chennai Character Voices</summary><div id="voiceEditor"></div></details><details id="vcMusicAdmin"><summary>Vada Chennai BGM</summary><p>Current track: <strong id="vcTrackName">Loading…</strong></p><label>Upload MP3 <input id="vcTrackFile" type="file" accept=".mp3,audio/mpeg"></label><button id="vcListen" class="pill-btn">Preview</button><button id="vcPublish" class="pill-btn">Save BGM</button><output id="vcTrackStatus" role="status"></output></details></section><section class="admin-section"><h3>🧩 Puzzles</h3>
         <label for="puzzleFormat">Import format</label>
@@ -785,5 +792,5 @@
   <script src="connection-quality.js"></script>
   <script src="interaction-update.js"></script>
   <link rel="stylesheet" href="interaction-update.css" />
-<link rel="stylesheet" href="vada/mode.css"><script src="vada/voices.js"></script><link rel="stylesheet" href="syndicate.css"><script src="syndicate.js"></script><script src="vada/mode.js"></script><link rel="stylesheet" href="club-tools.css"><script src="release.js"></script><script src="club-tools.js"></script></body>
+<link rel="stylesheet" href="vada/mode.css"><script src="vada/voices.js"></script><link rel="stylesheet" href="syndicate.css"><script src="syndicate.js"></script><script src="vada/mode.js"></script><link rel="stylesheet" href="club-tools.css"><script src="release.js"></script><script src="club-tools.js"></script><script src="messages.js"></script></body>
 </html>

@@ -39,7 +39,7 @@ npm install
 npm test
 ```
 
-Optional real-engine check: download the existing CDN's Stockfish 10.0.2 JS, then run `STOCKFISH_JS=/absolute/path/stockfish.js node real-engine.cjs` from `tests`. The engine binary is not newly bundled in this ZIP.
+Current release engine check: run node real-engine.cjs in tests after installing its dependencies.
 
 ## Not verified live
 

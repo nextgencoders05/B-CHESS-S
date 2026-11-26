@@ -14,7 +14,7 @@ async function fixture(width=1440, saved={}){
  for(const [k,v]of Object.entries(saved))w.localStorage.setItem(k,v);
  w.localStorage.setItem('bChessTermsAcceptedVersion','1.0');
  w.eval(fs.readFileSync(require.resolve('jquery'),'utf8'));w.eval(fs.readFileSync(__dirname+'/vendor/chess.min.js','utf8'));w.eval(fs.readFileSync(__dirname+'/vendor/chessboard.min.js','utf8'));
- for(const name of ['books_data.js','script.js','ux.js','features.js','next-core.js','move-badges.js','puzzles.js','theme-manager.js','tournaments.js','preferences.js','interaction-update.js'])w.eval(fs.readFileSync(base+name,'utf8'));
+ for(const name of ['books_data.js','engine-loader.js','script.js','ux.js','features.js','next-core.js','move-badges.js','puzzles.js','theme-manager.js','tournaments.js','preferences.js','interaction-update.js'])w.eval(fs.readFileSync(base+name,'utf8'));
  await new Promise(r=>w.$(()=>w.setTimeout(r,0)));w.eval("currentUserId='test-user';currentUserRating=1370;currentUserName='Test';");
  const clock=FakeTimers.withGlobal(w).install({now:Date.now(),shouldClearNativeTimers:true,toFake:['Date','setTimeout','clearTimeout','setInterval','clearInterval']});
  return {w,clock,errors,authCallbacks,close(){clock.uninstall();dom.window.close();}};

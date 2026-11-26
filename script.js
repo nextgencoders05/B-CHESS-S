@@ -189,7 +189,7 @@ auth.onAuthStateChanged(async (user) => {
       openProfileModal(true);
     }
 
-    if (!data.rating) {
+    if (data.rating == null) {
       const modal = document.getElementById("skillModal");
       if (modal && data.username) modal.style.display = "flex";
     } else {
@@ -321,7 +321,7 @@ async function saveUserProfile() {
     const modal = document.getElementById("skillModal");
     const snap = await database.ref("users/" + currentUserId).once("value");
     const data = snap.val() || {};
-    if (modal && !data.rating) modal.style.display = "flex";
+    if (modal && data.rating == null) modal.style.display = "flex";
   } catch (err) {
     console.error("Profile save error:", err);
     if (status) status.textContent = /bchess_unique_username|duplicate key/i.test(err.message) ? "Username already taken. Please choose another." : "Could not save profile: " + err.message;
@@ -623,23 +623,44 @@ function handleFriendTimeout() {
   });
 }
 
-function leaveFriendGame() {
+async function leaveFriendGame() {
   if (isWaitingForOpponent) { cancelWaitingChallenge(); return; }
   if (quickBot) {
     if (quickBot.over) { closeResultAndExitRoom(); return; }
-    if (!confirm('Leave this game? Your current game will be abandoned.')) return;
-    finishQuickBotGame('left', quickBot.botColor);
+    if (!confirm('Leave this rated game and lose 8 Elo?')) return;
+    const qb = quickBot;
+    if (qb.leaving) return;
+    if (quickBotTimeLeft(qb.clock.turn) <= 0) { renderQuickBotClock(); return; }
+    qb.leaving = true;
+    try {
+      const rating = await window.sbCall('bchess_bot_leave', {p_search:qb.code,p_record:{
+        opponentId:qb.botId,opponentName:qb.name,winnerId:qb.botId,timeControl:qb.tc,
+        timeLabel:qb.timeKey || friendTimeLabel(qb.tc),moves:game.history()
+      }});
+      showConfirmedRating(rating);
+      qb.leaving = false;
+      if (quickBot === qb) finishQuickBotGame('left', qb.botColor);
+    } catch (error) { qb.leaving = false; checkBotTrigger(); alert(error.message); }
     return;
   }
   if (!currentRoomCode) {
     setGameMode('friend');
     return;
   }
-  if (!confirm('Leave this game? Your current game will be abandoned.')) return;
+  if (!confirm(friendRoomData?.rated === false || friendRoomData?.gameOver ? 'Leave this game?' : 'Leave this rated game and lose 8 Elo?')) return;
   const code = currentRoomCode;
-  roomAction(code, 'leave').then(() => {
+  roomAction(code, 'leave').then(async () => {
     if (currentRoomCode === code) cleanupFriendGame(false);
+    const snap = await database.ref('users/' + currentUserId + '/rating').once('value');
+    showConfirmedRating(snap.val());
   }).catch(err => alert(err.message));
+}
+
+function showConfirmedRating(rating) {
+  if (typeof rating !== 'number') return;
+  currentUserRating = rating;
+  document.getElementById('userRatingDisplay').textContent = rating;
+  updateProfileUI();
 }
 
 function setWaitingForOpponent(waiting) {
@@ -928,7 +949,7 @@ function closeFriendMatchResult() {
 // Browsers only allow the permission prompt after a user gesture.
 function ensureNotificationPermission() {
   if (!('Notification' in window) || Notification.permission !== 'default') return;
-  try { const p = Notification.requestPermission(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  try { const p = Notification.requestPermission(); if (p && p.then) p.then(() => window.syncChessPush?.()).catch(() => {}); } catch (e) {}
 }
 
 function challengeMessageText(c) {
@@ -1293,7 +1314,7 @@ async function loadMatchHistory() {
       matches.map((m, i) => {
         const result = ['win', 'loss', 'draw'].includes(m.result) ? m.result : 'unknown';
         return `<div class="history-match-row"><div><strong>vs ${escapeHtml(m.opponentName || 'Player')}</strong>
-          <small>${escapeHtml(m.timeLabel || 'No Timer')} • ${formatMatchDate(m.playedAt)}</small></div>
+          <small>${escapeHtml(m.timeLabel || 'No Timer')} • ${formatMatchDate(m.playedAt)}${m.ratingDelta === -8 ? " • −8 Elo" : ""}</small></div>
           <div class="profile-match-actions"><span class="history-result ${result}">${result.toUpperCase()}</span>
           <button type="button" class="pill-btn" data-history-review="${i}">Review</button></div></div>`;
       }).join('');
@@ -2023,28 +2044,22 @@ function detectOpening() {
 
 // 1. Initialize Stockfish Engine
 async function initStockfish() {
-  const urls = [
-    'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js',
-    'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js'
-  ];
-
-  for (const url of urls) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) continue;
-      const scriptText = await response.text();
-      const blob = new Blob([scriptText], { type: 'application/javascript' });
-      stockfish = new Worker(URL.createObjectURL(blob));
-      setupStockfishListeners();
-      stockfish.postMessage('uci');
-      return;
-    } catch (e) {
-      console.warn('Trying next Stockfish CDN...', e);
-    }
+  try {
+    stockfish = await openStockfish18();
+    document.getElementById('engineLoadError')?.remove();
+    setupStockfishListeners();
+    stockfish.postMessage('uci');
+  } catch (error) {
+    document.getElementById('engineBadge').textContent = 'Stockfish 18 unavailable';
+    const retry = document.createElement('button');
+    retry.textContent = 'Retry engine';
+    retry.onclick = () => { retry.disabled = true; initStockfish(); };
+    const notice = document.getElementById('engineLoadError') || document.createElement('div');
+    notice.id = 'engineLoadError';
+    notice.setAttribute('role','alert');
+    notice.replaceChildren(error.message + ' ', retry);
+    document.body.append(notice);
   }
-
-  document.getElementById('engineBadge').textContent = 'Offline Mode';
-  document.getElementById('engineSubtext').textContent = 'Could not load remote Stockfish worker.';
 }
 
 function setupStockfishListeners() {
@@ -2054,12 +2069,18 @@ function setupStockfishListeners() {
 
     if (line === 'uciok') {
       engineReady = true;
-      document.getElementById('engineBadge').textContent = 'Stockfish 10 Ready';
+      document.getElementById('engineBadge').textContent = 'Stockfish 18 Ready';
+      if (currentMode === 'bot' && !game.game_over() && game.turn() !== playerColor && !isBotThinking) requestBotMove();
       if (currentMode === 'analysis') {
         analyzePosition();
       }
     }
 
+    if (quickBot && !quickBot.over && line.startsWith('bestmove') && isBotThinking && game.turn() === quickBot.botColor) {
+      isBotThinking = false;
+      if (!quickBot.leaving) executeBotMove(line.split(' ')[1]);
+      return;
+    }
     if ((window.bchessTournamentActive || (currentRoomCode && !friendRoomData?.gameOver) || (isOnlineMatchActive && !quickBot?.over)) && /^(info |bestmove)/.test(line)) return;
 
     if (line.startsWith('info depth')) {
@@ -2295,11 +2316,8 @@ function analyzePosition() {
 }
 
 function requestBotMove() {
-  if (game.game_over() || (quickBot && quickBot.over)) return;
-  if (!stockfish || !engineReady) {
-    if (quickBot || window.VC?.active) playRandomQuickBotMove();
-    return;
-  }
+  if (game.game_over() || isBotThinking || quickBot?.over || quickBot?.leaving || game.turn() === playerColor) return;
+  if (!stockfish || !engineReady) return;
   isBotThinking = true;
 
   if (!quickBot) {
@@ -2380,7 +2398,7 @@ function finishPromotionChoice(piece) {
 }
 
 function applyHumanMove(source, target, promotion = 'q') {
-  if (currentMode === 'bot' && (game.turn() !== playerColor || isBotThinking || quickBot?.over)) return false;
+  if (currentMode === 'bot' && (game.turn() !== playerColor || isBotThinking || quickBot?.over || quickBot?.leaving)) return false;
   if (currentMode === 'friend' && currentRoomCode) {
     return submitOnlineMove(source, target, promotion); // Preview only; server commits the move.
   }
@@ -3583,7 +3601,7 @@ function renderPlayerProfile(userId, u) {
 
   const matchRow = (m, i) => `
     <div class="history-match-row">
-      <div><strong>vs ${textEsc(m.opponentName || 'Player')}</strong><small>${textEsc(m.timeLabel || 'No Timer')} • ${formatMatchDate(m.playedAt)}${m.resultType ? ' • ' + textEsc(m.resultType) : ''}</small></div>
+      <div><strong>vs ${textEsc(m.opponentName || 'Player')}</strong><small>${textEsc(m.timeLabel || 'No Timer')} • ${formatMatchDate(m.playedAt)}${m.ratingDelta === -8 ? " • −8 Elo" : ""}${m.resultType ? ' • ' + textEsc(m.resultType) : ''}</small></div>
       <div class="profile-match-actions">
         <span class="history-result ${attrEsc(m.result || 'draw')}">${textEsc((m.result || 'draw').toUpperCase())}</span>
         <button type="button" class="pill-btn review-match-btn" data-idx="${i}">Review</button>
@@ -3646,7 +3664,7 @@ function showSavedMatchReview(m, playerName, owner = null) {
   }
   reviewIndex = reviewFens.length - 1;
   document.getElementById('matchReviewTitle').textContent = `${playerName} vs ${m.opponentName || 'Player'}`;
-  document.getElementById('matchReviewSub').textContent = `${(m.result || 'draw').toUpperCase()} • ${m.timeLabel || 'No Timer'} • ${formatMatchDate(m.playedAt)}`;
+  document.getElementById('matchReviewSub').textContent = `${(m.result || 'draw').toUpperCase()} • ${m.timeLabel || 'No Timer'} • ${formatMatchDate(m.playedAt)}${m.ratingDelta === -8 ? " • −8 Elo" : ""}`;
   reviewOwner = owner;
   document.getElementById('reviewCopyMovesBtn').hidden = !owner || !reviewSans.length;
   document.getElementById('reviewCopyMovesStatus').textContent = owner && !reviewSans.length ? 'No moves were saved for this match.' : '';
@@ -4175,7 +4193,7 @@ function startQuickBotGame(tc) {
   }, 1200);
 }
 
-function launchQuickBotGame(tc, name, rating, increment = 0, timeKey = null) {
+function launchQuickBotGame(tc, name, rating, increment = 0, timeKey = null, searchId = null) {
   const myColor = Math.random() < 0.5 ? 'w' : 'b';
   setWaitingForOpponent(false);
   lockModeButtons(false);
@@ -4185,7 +4203,7 @@ function launchQuickBotGame(tc, name, rating, increment = 0, timeKey = null) {
   playerColor = myColor;
   myOnlineColor = myColor;
   quickBot = {
-    code: generateRoomCode(), tc, name, rating, myColor, increment, timeKey,
+    code: searchId || crypto.randomUUID(), tc, name, rating, myColor, increment, timeKey,
     botColor: myColor === 'w' ? 'b' : 'w',
     botId: 'qm_' + name.toLowerCase(),
     clock: { w: tc, b: tc, turn: 'w', startedAt: Date.now() },
@@ -4293,7 +4311,7 @@ function quickBotAfterMove() {
 
 function finishQuickBotGame(result, winnerColor) {
   window.BChessPremove?.clear();
-  if (!quickBot || quickBot.over) return;
+  if (!quickBot || quickBot.over || quickBot.leaving) return;
   const qb = quickBot;
   qb.over = true;
   clearInterval(qb.interval);
@@ -4318,7 +4336,7 @@ function finishQuickBotGame(result, winnerColor) {
     result, winner: winnerId, timeControl: qb.tc, moveHistory: game.history(),
     gameOver: true, quickMatch: true, quickKey: qb.timeKey, quickLabel: qb.timeKey || friendTimeLabel(qb.tc)
   };
-  saveFriendMatchHistory(roomValue, qb.code);
+  if (result !== 'left') saveFriendMatchHistory(roomValue, qb.code);
   lockModeButtons(false);
   showFriendMatchResult(roomValue, qb.code);
 }

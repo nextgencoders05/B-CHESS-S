@@ -271,7 +271,7 @@
         Math.abs(b - Number(currentUserRating || 800)) < Math.abs(a - Number(currentUserRating || 800)) ? b : a);
       const name = QUICK_BOT_NAMES[Math.floor(Math.random() * QUICK_BOT_NAMES.length)] + ' (Bot)';
       qmClearWaitingView();
-      launchQuickBotGame(minutes * 60, name, rating, increment, run.key);
+      launchQuickBotGame(minutes * 60, name, rating, increment, run.key, run.id);
     } catch (err) {
       if (qm.run !== run && qm.run !== null) return;
       qm.run = null; qm.phase = 'idle'; qm.message = friendlyFnError(err); renderQuickMatchPanel();

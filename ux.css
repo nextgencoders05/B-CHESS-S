@@ -359,3 +359,11 @@ body.ux-nav-ready .mode-selector{display:none}   /* originals stay in DOM and ar
   #quickMatchBtn{grid-column:1/-1;font-size:15px}
   .board-mic-btn{height:26px;padding:0 8px}
 }
+
+#specialModes{position:fixed;inset:0;margin:auto;width:max-content;max-width:90vw;border:1px solid #806942;border-radius:16px;padding:22px;background:#191b20;color:#f5ead7;text-align:center}#specialModes::backdrop{background:#0009}
+
+#engineLoadError{position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);z-index:10000;background:#201e1b;color:#fff;padding:.7rem 1rem;border-radius:.65rem}
+@media(min-width:901px){
+  #uxNav #mobileMoreBtn{display:flex!important}
+  #uxNav #mobileMorePanel:not([hidden]){display:grid!important;padding:4px 10px}
+}

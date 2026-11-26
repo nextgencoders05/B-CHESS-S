@@ -1,12 +1,40 @@
-// Optional integration check. Supply the existing Stockfish 10.0.2 CDN JS file.
-const assert=require('assert'),fs=require('fs'),path=require('path');const {Worker:NodeWorker}=require('worker_threads');const {fixture}=require('./interactions.cjs');
-(async()=>{if(!process.env.STOCKFISH_JS)throw new Error('Set STOCKFISH_JS to a downloaded Stockfish 10.0.2 stockfish.js');
- const source=path.resolve(process.env.STOCKFISH_JS),t=await fixture(),workers=[];
- try{t.w.fetch=async()=>({ok:true,text:async()=>fs.readFileSync(source,'utf8')});
- t.w.Worker=class {constructor(){this.worker=new NodeWorker(`const {parentPort}=require('worker_threads');global.postMessage=x=>parentPort.postMessage(x);global.close=()=>process.exit();parentPort.on('message',x=>global.onmessage({data:x}));require(${JSON.stringify(source)});`,{eval:true});workers.push(this.worker);this.worker.on('message',data=>this.onmessage?.({data}));this.worker.on('error',error=>this.onerror?.(error));}postMessage(x){this.worker.postMessage(x)}terminate(){this.worker.terminate()}};
- const c=new t.w.Chess(),before=c.fen(),move=c.move('e4'),after=c.fen();t.w.eval(`game.load(${JSON.stringify(after)});board.position(game.fen(),false);`);
- let result;t.w.BChessBadges.inspect('myBoard',before,move,after,()=>true,r=>result=r);
- for(let i=0;i<80&&!result;i++)await new Promise(r=>setTimeout(r,100));
- assert(result,'Actual UCI evaluation did not finish: '+t.w.document.getElementById('myBoardQuality')?.textContent);assert(Number.isFinite(result.loss));assert(t.w.document.querySelector('#myBoard [data-square="e4"] .quality-3d'));console.log('PASS actual Stockfish 10.0.2 worker → before/after evaluation → '+result.quality+' badge; loss '+result.loss+' cp.');
- }finally{workers.forEach(w=>w.terminate());t.close();}
-})().catch(e=>{console.error(e.message);process.exit(1)});
+// Exercise the badge worker protocol using the bundled Stockfish 18 CLI build.
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const readline = require('node:readline');
+const fs = require('node:fs');
+const path = require('node:path');
+const { fixture } = require('./interactions.cjs');
+
+(async () => {
+  const t = await fixture();
+  const children = [];
+  try {
+    t.w.eval(fs.readFileSync(path.resolve(__dirname, '../engine-loader.js'), 'utf8'));
+    t.w.Worker = class {
+      constructor(url) {
+        assert.equal(url.pathname, '/engine/stockfish-18-lite-single.js');
+        this.process = spawn(process.execPath, [path.resolve(__dirname, '..' + url.pathname)]);
+        children.push(this.process);
+        readline.createInterface({input:this.process.stdout}).on('line',data=>this.onmessage?.({data}));
+        this.process.on('error',error=>this.onerror?.(error));
+      }
+      postMessage(command) { this.process.stdin.write(command + '\n'); }
+      terminate() { this.process.kill(); }
+    };
+    const chess = new t.w.Chess();
+    const before = chess.fen();
+    const move = chess.move('e4');
+    const after = chess.fen();
+    t.w.eval('game.load(' + JSON.stringify(after) + '); board.position(game.fen(), false);');
+    let result;
+    t.w.BChessBadges.inspect('myBoard',before,move,after,()=>true,value=>{result=value;});
+    for(let i=0; i<120 && !result; i++) await new Promise(resolve=>setTimeout(resolve,100));
+    assert(Number.isFinite(result?.loss),t.w.document.querySelector('#myBoardQuality')?.textContent);
+    assert(t.w.document.querySelector('#myBoard [data-square="e4"] .quality-3d'));
+    console.log('PASS bundled Stockfish 18 handshake, before/after analysis and move badge.');
+  } finally {
+    children.forEach(child=>child.kill());
+    t.close();
+  }
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -64,7 +64,7 @@
   document.addEventListener('click',async e=>{
     if(e.target.closest('#soundToggleBtn')&&!soundEnabled)Voice.stop();
     if(e.target.closest('#modeBooksBtn,#modePuzzlesBtn,#modeTournamentBtn,#modeHistoryBtn'))VC.leave();
-    if(!e.target.closest('#vcEnter'))return;
+    if(!e.target.closest('#vcEnter,[data-vada-enter]'))return;
     if(!currentUserId)return triggerGoogleLogin();
     if(!requireTermsAccepted()||isOnlineMatchActive||quickBot&&!quickBot.over||window.bchessTournamentActive)return;
     setGameMode('bot');const ticket=++generation;

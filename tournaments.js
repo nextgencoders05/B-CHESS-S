@@ -41,12 +41,19 @@
   }catch(e){tell(e.message);}finally{st.polling=false;}
  }
  function renderGame(g){const changed=!st.game||st.game.id!==g.id||st.game.version!==g.version;st.game=g;st.model=new Chess(g.fen);$('tourGamePanel').hidden=false;
-  if(!st.board)st.board=Chessboard('tournamentBoard',{draggable:true,position:g.fen,pieceTheme:PIECE_IMG_URL,
+  if(!st.board)st.board=createPlayBoard('tournamentBoard',{draggable:true,position:g.fen,pieceTheme:PIECE_IMG_URL,
    onDragStart:(from,piece)=>{if(!st.inTouch&&Date.now()-st.lastTouchEnd<450)return false;if(!canMove()||piece[0]!==st.model.turn())return false;st.dragFrom=from;if(st.selected!==from)highlightTour(from);return true;},
    onDrop:(from,to)=>{st.dragFrom=null;if(st.inTouch){st.inTouch=false;st.lastTouchEnd=Date.now();}if(!canMove()||!to||to==='offboard'){selectTour(st.selected);return 'snapback';}st.lastDrop=Date.now();st.lastDropSquare=to;if(from===to){st.lastDropWasMove=false;selectTour(st.selected===from?null:from);return 'snapback';}if(st.model.get(to)?.color===st.model.turn()){st.lastDropWasMove=false;selectTour(to);return 'snapback';}st.lastDropWasMove=true;selectTour(null);move(from,to);return 'snapback';},
    onSnapbackEnd:()=>{if(st.game)st.board.position(st.game.fen,false);selectTour(st.selected);},
    onSnapEnd:()=>{if(st.game)st.board.position(st.game.fen,false);selectTour(st.selected);}});
-  if(changed){selectTour(null);st.board.orientation(g.white_id===currentUserId?'white':'black');st.board.position(g.fen,false);}st.board.resize();selectTour(st.selected);
+  if(changed){
+    selectTour(null);
+    const side=g.white_id===currentUserId?'white':'black';
+    if(st.board.orientation()!==side)st.board.orientation(side);
+    st.board.resize();
+    st.board.position(g.fen);
+  }
+  selectTour(st.selected);
   $('tourGameTitle').textContent='Round '+g.round+' — You play '+(g.white_id===currentUserId?'White':'Black');
   const entries = st.data?.entries || [];
   $('tourPlayerNames').hidden = g.status !== 'active';

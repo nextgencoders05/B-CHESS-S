@@ -15,7 +15,7 @@
    const c=new Chess();if(!c.load_pgn(document.getElementById('analysisPGNInput').value,{sloppy:true})||!c.history().length){error.textContent='Enter a valid PGN with moves.';return;}
    reviewSans=c.history();while(c.undo()){}reviewFens=[c.fen()];reviewSans.forEach(m=>{c.move(m);reviewFens.push(c.fen());});reviewGame=c;
    document.getElementById('matchReviewTitle').textContent='PGN game review';document.getElementById('matchReviewSub').textContent='Select a move to analyze its quality.';document.getElementById('matchReviewModal').style.display='flex';
-   if(reviewBoard)reviewBoard.destroy();reviewBoard=Chessboard('reviewBoard',{draggable:false,position:reviewFens[0],pieceTheme:PIECE_IMG_URL});renderReviewMoveList();setReviewIndex(1);
+   if(reviewBoard)reviewBoard.destroy();reviewBoard=createPlayBoard('reviewBoard',{draggable:false,position:reviewFens[0],pieceTheme:PIECE_IMG_URL});renderReviewMoveList();setReviewIndex(1);
   };
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();

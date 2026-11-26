@@ -390,7 +390,7 @@
     selection(null);clearHint();window.BChessBadges?.clear('puzzleBoard');
     justCompleted=null;dragFrom=null;lastDrop=0;lastDropSquare=null;lastDropWasMove=false;inTouch=false;
     state.generation++; state.puzzle=puzzle; state.game=new Chess(puzzle.fen);state.index=0;state.moves=[];state.busy=false;state.selected=null;
-    if(!state.board) state.board=Chessboard('puzzleBoard',{draggable:true,position:puzzle.fen,pieceTheme:PIECE_IMG_URL,
+    if(!state.board) state.board=createPlayBoard('puzzleBoard',{draggable:true,position:puzzle.fen,pieceTheme:PIECE_IMG_URL,
       onDragStart:(source,piece)=>{
         if(!inTouch&&Date.now()-lastTouchEnd<450)return false;
         if(state.busy||!state.active||!state.puzzle||state.index>=state.puzzle.solution.length||piece[0]!==state.game.turn())return false;
@@ -463,7 +463,7 @@
       message('Opponent is moving…');
       await new Promise(resolve=>setTimeout(resolve,400));
       if(generation!==state.generation||!state.active)return;
-      const reply=p.solution[state.index],replyBefore=chess.fen(),replyMove=moveToken(chess,reply);state.moves.push(reply);state.index++;state.board.position(chess.fen(),false);
+      const reply=p.solution[state.index],replyBefore=chess.fen(),replyMove=moveToken(chess,reply);state.moves.push(reply);state.index++;state.board.position(chess.fen());
       const replyAfter=chess.fen();window.BChessBadges?.inspect('puzzleBoard',replyBefore,replyMove,replyAfter,()=>state.active&&state.generation===generation&&state.game.fen()===replyAfter);
     }
     if(state.index===p.solution.length) {

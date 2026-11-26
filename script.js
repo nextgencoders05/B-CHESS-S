@@ -2509,6 +2509,63 @@ function onDrop(source, target) {
   return applyHumanMove(source, target) ? undefined : 'snapback';
 }
 
+// Commit the position immediately, then animate just the arriving piece images.
+function createPlayBoard(id, config) {
+  const root = document.getElementById(id);
+  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let dropping = false;
+  const widget = Chessboard(id, {
+    ...config,
+    snapSpeed: reduced() ? 1 : 65,
+    snapbackSpeed: reduced() ? 1 : 95,
+    onDrop: (...args) => {
+      dropping = true;
+      try { return config.onDrop?.(...args); }
+      finally { dropping = false; }
+    }
+  });
+  const position = widget.position;
+  const square = name => root.querySelector('[data-square="' + name + '"]');
+  widget.position = function(target, animate) {
+    if (!arguments.length || target === 'fen') return position(...arguments);
+    // The board library owns the dragged sprite until onSnapEnd reconciles the FEN.
+    if (dropping) return;
+    const before = position();
+    const next = typeof target === 'string' ? Chessboard.fenToObj(target) : target;
+    if (!next || animate === false || reduced()) return position(target, false);
+    const changed = Object.keys({...before, ...next}).filter(key => before[key] !== next[key]);
+    if (!changed.length) return;
+    if (changed.length > 4) return position(target, false);
+    const sources = changed.filter(key => before[key]);
+    const flights = [];
+    for (const to of changed.filter(key => next[key])) {
+      let from = sources.find(key => before[key] === next[to]);
+      if (!from) {
+        // Forward promotion or a single reverse step in analysis.
+        from = sources.find(key => before[key][0] === next[to][0] &&
+          ((before[key][1] === 'P' && /[18]$/.test(to)) ||
+           (next[to][1] === 'P' && /[18]$/.test(key))));
+      }
+      if (!from || from === to) continue;
+      sources.splice(sources.indexOf(from), 1);
+      const origin = square(from)?.querySelector('img')?.getBoundingClientRect();
+      if (origin) flights.push({origin, to});
+    }
+    position(target, false);
+    for (const {origin, to} of flights) {
+      const image = square(to)?.querySelector('img');
+      if (!image?.animate) continue;
+      const end = image.getBoundingClientRect();
+      image.animate([
+        {transform: 'translate(' + (origin.left-end.left) + 'px,' + (origin.top-end.top) + 'px)', position:'relative', zIndex:2},
+        {transform:'translate(0,0)', position:'relative', zIndex:2}
+      ], {duration:140, easing:'cubic-bezier(.2,.65,.3,1)'});
+    }
+    config.onMoveEnd?.(before, next);
+  };
+  return widget;
+}
+
 function onSnapEnd() {
   board.position(pendingOnlineMove?.previewFen || game.fen());
   if (selectedSquare) showLegalDestinations(selectedSquare);
@@ -3106,7 +3163,7 @@ $(document).ready(function() {
     onSnapEnd: onSnapEnd
   };
 
-  board = Chessboard('myBoard', config);
+  board = createPlayBoard('myBoard', config);
 
   let lastTouchTime = 0;
   let touchStartInfo = null;
@@ -3672,7 +3729,7 @@ function showSavedMatchReview(m, playerName, owner = null) {
   document.getElementById('reviewCopyMovesText').value = '';
   document.getElementById('matchReviewModal').style.display = 'flex';
   if (reviewBoard) { try { reviewBoard.destroy(); } catch (_) {} reviewBoard = null; }
-  reviewBoard = Chessboard('reviewBoard', { draggable: false, position: reviewFens[reviewIndex], pieceTheme: PIECE_IMG_URL });
+  reviewBoard = createPlayBoard('reviewBoard', { draggable: false, position: reviewFens[reviewIndex], pieceTheme: PIECE_IMG_URL });
   renderReviewMoveList();
   setReviewIndex(reviewIndex);
 }
